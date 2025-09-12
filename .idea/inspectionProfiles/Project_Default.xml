@@ -14,5 +14,16 @@
         </value>
       </option>
     </inspection_tool>
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="pygtgraph" />
+          <option value="int.equals" />
+          <option value="GUI.profile_page.ProfileFrame.*" />
+          <option value="data" />
+          <option value="dev_log.new_centroids.equals" />
+        </list>
+      </option>
+    </inspection_tool>
   </profile>
 </component>

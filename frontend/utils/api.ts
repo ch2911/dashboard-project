@@ -7,31 +7,29 @@ type SentimentResult = {
     };
 };
 
-type StockPrice = {
-    ticker: string;
-    price: number;
-    change: number;
-};
-
-type PricePoint = {
-    time: string;
-    price: number;
-};
-
 export async function fetchSentiment(stock: string = "TSLA"): Promise<SentimentResult[]> {
     const res = await fetch(`http://127.0.0.1:5000/sentiment?stock=${stock}`);
     return res.json();
 }
 
-export async function fetchPrice(stock: string = "TSLA"): Promise<StockPrice> {
-    const res = await fetch(`http://127.0.0.1:5000/price?stock=${stock}`);
+export async function fetchPrice(stock: string = "TSLA") {
+    const res = await fetch(
+        `http://127.0.0.1:5000/price?stock=${stock}`
+    );
     return res.json();
 }
 
-export async function fetchPriceHistory(stock: string = "TSLA"): Promise<PricePoint[]> {
-    const res = await fetch(`http://127.0.0.1:5000/price_history?stock=${stock}`);
+export async function fetchPriceHistory(stock: string = "TSLA") {
+    const res = await fetch(
+        `http://127.0.0.1:5000/price_history?stock=${stock}&range=1d`
+    );
     return res.json();
 }
 
-
+export async function searchStocks(query: string): Promise<{symbol: string; name: string}[]> {
+    if (!query) return [];
+    const res = await fetch(`http://127.0.0.1:5000/search_stock?q=${encodeURIComponent(query)}`);
+    if (!res.ok) return [];
+    return res.json();
+}
 

@@ -19,4 +19,3 @@ def fetch_news(query="Tesla"):
         results.append({"title": title, "time": published})
     return results
 
-print(fetch_news())

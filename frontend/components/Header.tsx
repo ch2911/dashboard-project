@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { searchStocks } from "../utils/api";
 import { useRouter } from "next/navigation";
-import { usePinnedStocks } from "../hooks/usePinnedStocks";
+import { useAuth} from "../lib/useAuth";
 
 type Suggestion = {
     symbol: string;
@@ -14,7 +14,7 @@ export default function Header() {
     const [query, setQuery] = useState("");
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const router = useRouter();
-    const { user } = usePinnedStocks();
+    const { user } = useAuth();
 
     useEffect(() => {
         if (query.length > 1) {
@@ -29,14 +29,14 @@ export default function Header() {
             <Link href="/" className="text-3xl font-extrabold tracking-wide cursor-pointer">
                 📈 Stock Dashboard
             </Link>
-            <p className="text-sky-200 mt-1">Real-time stock price analysis</p>
+            <p className="text-black mt-1">Real-time stock price analysis</p>
 
             {/* Search bar */}
             <div className="mt-4 relative max-w-md">
                 <input
                     type="text"
                     placeholder="Search stocks..."
-                    className="p-2 rounded text-sky-200 w-full"
+                    className="p-2 rounded text-black w-full"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                 />

@@ -1,12 +1,25 @@
+# In backend/app.py
+import os
+import sys # Import the sys module
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from services.news_fetcher import fetch_news
 from services.sentiment import analyze_sentiment
 import yfinance as yf
-import os
 import requests
 import json
 from dotenv import load_dotenv
+
+# This helper function finds the correct path for bundled files
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -14,11 +27,16 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 load_dotenv()
 ALPHAVANTAGE_KEY = os.getenv("ALPHAVANTAGE_KEY")
 
-with open("stocks.json", "r") as f:
+# Use the helper function to open stocks.json
+stocks_json_path = resource_path("stocks.json")
+with open(stocks_json_path, "r") as f:
     LOCAL_STOCKS = json.load(f)
+
+# --- All of your @app.route functions remain exactly the same below ---
 
 @app.route("/sentiment", methods=["GET"])
 def get_sentiment():
+    # ... (no changes needed here)
     ticker = request.args.get("stock", "TSLA")
     articles = fetch_news(ticker)
     analyzed = [
@@ -34,6 +52,7 @@ def get_sentiment():
 
 @app.route("/search_stock", methods=["GET"])
 def search_stock():
+    # ... (no changes needed here)
     query = request.args.get("q", "").lower().strip()
     if not query:
         return jsonify([])
@@ -73,6 +92,7 @@ def search_stock():
 
 @app.route("/price", methods=["GET"])
 def get_price():
+    # ... (no changes needed here)
     ticker = request.args.get("stock", "TSLA")
     stock = yf.Ticker(ticker)
     data = stock.history(period="1d", interval="1m")  # intraday
@@ -91,6 +111,7 @@ def get_price():
 
 @app.route("/price_history", methods=["GET"])
 def price_history():
+    # ... (no changes needed here)
     ticker = request.args.get("stock", "TSLA")
     stock = yf.Ticker(ticker)
 

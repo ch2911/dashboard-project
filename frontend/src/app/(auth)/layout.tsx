@@ -22,7 +22,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="min-h-screen bg-gradient-to-b from-sky-900 via-blue-700 to-sky-500 text-white p-6">
             {/* Header */}
             <header className="p-6 border-b border-sky-300/30 shadow-lg flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <Link href="/">
+                <Link href="/dashboard">
                     <h1 className="text-2xl font-extrabold tracking-wide cursor-pointer">📈 Stock Dashboard</h1>
                 </Link>
 

@@ -16,7 +16,7 @@ export default function LoginPage() {
         setLoading(true);
         setError(null);
 
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { error } = await supabase.auth.signInWithPassword({
             email,
             password,
         });
@@ -26,7 +26,7 @@ export default function LoginPage() {
         if (error) {
             setError(error.message);
         } else {
-            router.push("/"); // redirect to home
+            router.push("/dashboard"); // redirect to home
         }
     };
 
@@ -56,7 +56,7 @@ export default function LoginPage() {
                     <input
                         type="email"
                         placeholder="Email"
-                        className="w-full p-2 rounded text-sky-200"
+                        className="w-full p-2 rounded text-black"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
@@ -64,7 +64,7 @@ export default function LoginPage() {
                     <input
                         type="password"
                         placeholder="Password"
-                        className="w-full p-2 rounded text-sky-200"
+                        className="w-full p-2 rounded text-black"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required

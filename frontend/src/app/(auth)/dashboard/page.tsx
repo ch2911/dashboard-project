@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePinnedStocks } from "../../../hooks/usePinnedStocks";
-import { fetchPrice, fetchPriceHistory, fetchSentiment } from "../../../utils/api";
+import { usePinnedStocks } from "../../../../hooks/usePinnedStocks";
+import { fetchPrice, fetchPriceHistory, fetchSentiment } from "../../../../utils/api";
 
 import {
     LineChart,

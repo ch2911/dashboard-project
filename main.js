@@ -10,7 +10,7 @@ const PORT = 3001; // An unused port
 
 // --- Start Backend Process ---
 function startBackend() {
-    const backendPath = path.join(__dirname, 'backend', 'dist', 'app.exe');
+    const backendPath = path.join(__dirname, 'backend', 'dist', 'app');
     backendProcess = execFile(backendPath, (error, stdout, stderr) => {
         if (error) {
             console.error(`Backend Error: ${error}`);

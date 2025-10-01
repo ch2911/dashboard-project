@@ -148,7 +148,8 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                                 dataKey="prediction"
                                 stroke="#4ade80"
                                 strokeWidth={2}
-                                strokeDasharray="5 5" // This makes the line dashed
+                                strokeDasharray="5 5"
+                                dot={false}
                                 connectNulls
                             />
                         </LineChart>

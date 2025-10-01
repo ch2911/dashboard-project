@@ -121,15 +121,21 @@ def get_price():
         "change": round(change, 2)
     })
 
-
 @app.route("/price_history", methods=["GET"])
 def price_history():
-    # ... (no changes needed here)
     ticker = request.args.get("stock", "TSLA")
+    # Get the requested time range, defaulting to 'daily'
+    time_range = request.args.get("range", "daily")
+
     stock = yf.Ticker(ticker)
 
-    # Get last trading day intraday data (1-minute interval)
-    hist = stock.history(period="1d", interval="5m")  # 5m keeps chart cleaner
+    if time_range == 'intraday':
+        # Fetch intraday data for the last day
+        hist = stock.history(period="1d", interval="5m")
+    else:
+        # Default to daily data for the last 3 months
+        hist = stock.history(period="3mo", interval="1d")
+
     if hist.empty:
         return jsonify({"error": "No data"}), 404
 

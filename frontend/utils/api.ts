@@ -20,9 +20,9 @@ export async function fetchPrice(stock: string = "TSLA") {
     return res.json();
 }
 
-export async function fetchPriceHistory(stock: string = "TSLA") {
+export async function fetchPriceHistory(stock: string = "TSLA", range: 'daily' | 'intraday' = 'daily') {
     const res = await fetch(
-        `http://127.0.0.1:5000/price_history?stock=${stock}&range=1d`
+        `http://127.0.0.1:5000/price_history?stock=${stock}&range=${range}`
     );
     return res.json();
 }

@@ -44,46 +44,63 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
     const { pinned, pinStock, unpinStock } = usePinnedStocks();
     const isPinned = pinned.includes(ticker);
 
+    const [timeRange, setTimeRange] = useState<'daily' | 'intraday'>('daily');
+
     const [price, setPrice] = useState<StockPrice | null>(null);
     const [history, setHistory] = useState<PricePoint[]>([]);
     const [sentiment, setSentiment] = useState<SentimentResult[]>([]);
     const [prediction, setPrediction] = useState<PricePoint[]>([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (!ticker) return;
 
-        setLoading(true); // Set loading state
-        Promise.all([
-            fetchPrice(ticker),
-            fetchPriceHistory(ticker),
-            fetchSentiment(ticker),
-            fetchPrediction(ticker), // 3. Fetch prediction data
-        ]).then(([priceData, historyData, sentimentData, predictionData]) => {
+        setLoading(true);
+        const fetchAllData = async () => {
+            // Fetch common data
+            const [priceData, sentimentData] = await Promise.all([
+                fetchPrice(ticker),
+                fetchSentiment(ticker),
+            ]);
             setPrice(priceData);
-            setHistory(historyData);
             setSentiment(sentimentData);
-            setPrediction(predictionData);
-            setLoading(false); // Clear loading state
-        });
-    }, [ticker]);
 
-    const [loading, setLoading] = useState(true);
+            if (timeRange === 'daily') {
+                // For daily view, fetch history AND predictions
+                const [historyData, predictionData] = await Promise.all([
+                    fetchPriceHistory(ticker, 'daily'),
+                    fetchPrediction(ticker),
+                ]);
+                setHistory(historyData);
+                setPrediction(predictionData);
+            } else {
+                // For intraday view, fetch only history and clear predictions
+                const historyData = await fetchPriceHistory(ticker, 'intraday');
+                setHistory(historyData);
+                setPrediction([]); // Clear predictions
+            }
+            setLoading(false);
+        };
+
+        fetchAllData();
+    }, [ticker, timeRange]);
 
     const combinedChartData = (() => {
         if (!history.length) return [];
 
         const historicalPoints: ChartDataPoint[] = history.map((pt) => {
             const d = new Date(pt.time);
-            const timeLabel = new Intl.DateTimeFormat("en-GB", {
-                hour: "2-digit", minute: "2-digit", timeZone: "Europe/London",
-            }).format(d);
-            return { name: timeLabel, price: pt.price};
+            const formatOptions: Intl.DateTimeFormatOptions =
+                timeRange === 'daily'
+                    ? { day: '2-digit', month: 'short' }
+                    : { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" };
+            const timeLabel = new Intl.DateTimeFormat("en-GB", formatOptions).format(d);
+            return { name: timeLabel, price: pt.price };
         });
 
         if (!prediction.length) return historicalPoints;
 
         const lastHistoryPoint = historicalPoints[historicalPoints.length - 1];
-
         lastHistoryPoint.prediction = lastHistoryPoint.price;
 
         const predictionPoints = prediction.map((pt) => {
@@ -119,39 +136,57 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
 
             {/* Stock Info */}
             <section className="bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-md mb-6">
-                {/* ... (This section remains the same) ... */}
+                <h2 className="text-xl font-semibold mb-3">Stock Overview</h2>
+                {price ? (
+                    <div>
+                        <p className="text-sky-200">Company: {ticker}</p>
+                        <p>
+                            Price:{" "}
+                            <span className="font-bold text-white">${price.price}</span>{" "}
+                            <span
+                                className={`ml-2 font-bold ${
+                                    price.change > 0 ? "text-green-400" : "text-red-400"
+                                }`}
+                            >
+                {price.change}% today
+              </span>
+                        </p>
+                    </div>
+                ) : (
+                    <p className="text-sky-200">Loading price...</p>
+                )}
             </section>
 
             {/* Price Chart */}
             <section className="bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-md mb-6">
-                <h2 className="text-xl font-semibold mb-3">Price Chart & Prediction</h2>
+                <div className="flex justify-between items-center mb-3">
+                    <h2 className="text-xl font-semibold">Price Chart</h2>
+                    {/* 4. ADD THE UI BUTTONS TO TOGGLE THE VIEW */}
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setTimeRange('daily')}
+                            className={`px-3 py-1 text-sm rounded-md ${timeRange === 'daily' ? 'bg-sky-500' : 'bg-white/10 hover:bg-white/20'}`}
+                        >
+                            Daily (3mo)
+                        </button>
+                        <button
+                            onClick={() => setTimeRange('intraday')}
+                            className={`px-3 py-1 text-sm rounded-md ${timeRange === 'intraday' ? 'bg-sky-500' : 'bg-white/10 hover:bg-white/20'}`}
+                        >
+                            Intraday (1d)
+                        </button>
+                    </div>
+                </div>
                 <div className="w-full h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                        {/* 5. Update the chart with the new data and lines */}
                         <LineChart data={combinedChartData}>
                             <XAxis dataKey="name" stroke="#bae6fd" />
                             <YAxis stroke="#bae6fd" domain={['dataMin - 1', 'dataMax + 1']} />
                             <Tooltip />
                             <Legend />
-                            <Line
-                                name="Historical Price"
-                                type="monotone"
-                                dataKey="price"
-                                stroke="#38bdf8"
-                                strokeWidth={2}
-                                dot={false}
-                                connectNulls
-                            />
-                            <Line
-                                name="Predicted price"
-                                type="monotone"
-                                dataKey="prediction"
-                                stroke="#4ade80"
-                                strokeWidth={2}
-                                strokeDasharray="5 5"
-                                dot={false}
-                                connectNulls
-                            />
+                            <Line name="Historical Price" type="monotone" dataKey="price" stroke="#38bdf8" strokeWidth={2} dot={false} connectNulls />
+                            {/* The prediction line will only render when it has data */}
+                            <Line name="Predicted Price" type="monotone" dataKey="prediction" stroke="#4ade80" strokeWidth={2} strokeDasharray="5 5" dot={false} connectNulls />
                         </LineChart>
                     </ResponsiveContainer>
                 </div>

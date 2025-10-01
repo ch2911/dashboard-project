@@ -4,19 +4,21 @@ import pandas as pd
 
 def predict_stock_price(ticker):
     try:
-        # Fetch a longer history for a more stable model
-        stock_data = yf.Ticker(ticker).history(period="3mo", interval="1d")
+        # 1. FETCH MORE DATA: Changed from "3mo" to "6mo" for better long-term context.
+        stock_data = yf.Ticker(ticker).history(period="6mo", interval="1d")
         if stock_data.empty:
             return []
 
-        # We will predict the 'Close' price
-        model = ARIMA(stock_data['Close'], order=(5,1,0))
+        # 2. TWEAK THE MODEL: Changed order from (5,1,0) to (10,1,0).
+        # This makes the model look at the last 10 days (instead of 5) to predict the next point,
+        # making it more sensitive to the most recent trend.
+        model = ARIMA(stock_data['Close'], order=(10,1,0))
         model_fit = model.fit()
 
         # Predict the next 7 days
         predictions = model_fit.forecast(steps=7)
 
-        # Format the predictions for the frontend
+        # Create future dates for the predictions
         last_date = stock_data.index[-1]
         future_dates = pd.to_datetime([last_date + pd.DateOffset(days=i) for i in range(1, 8)])
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePinnedStocks } from "../../../../hooks/usePinnedStocks";
-import { fetchPrice, fetchPriceHistory, fetchSentiment } from "../../../../utils/api";
+import { fetchPrice, fetchPriceHistory, fetchSentiment, type SentimentResult } from "../../../../utils/api";
 
 import {
     LineChart,
@@ -25,22 +25,12 @@ type PricePoint = {
     price: number;
 };
 
-type SentimentResult = {
-    title: string;
-    time: string;
-    sentiment: {
-        label: string;
-        score: number;
-    };
-    ticker?: string;
-};
-
 export default function Dashboard() {
     const { pinned } = usePinnedStocks();
 
     const [prices, setPrices] = useState<Record<string, StockPrice>>({});
     const [histories, setHistories] = useState<Record<string, PricePoint[]>>({});
-    const [sentiments, setSentiments] = useState<SentimentResult[]>([]);
+    const [sentiments, setSentiments] = useState<(SentimentResult & { ticker: string })[]>([]);
 
     // Fetch data for all pinned stocks
     useEffect(() => {
@@ -49,7 +39,7 @@ export default function Dashboard() {
         const loadData = async () => {
             const priceResults: Record<string, StockPrice> = {};
             const historyResults: Record<string, PricePoint[]> = {};
-            let sentimentResults: SentimentResult[] = [];
+            let sentimentResults: (SentimentResult & { ticker: string })[] = [];
 
             for (const ticker of pinned) {
                 const [p, h, s] = await Promise.all([
@@ -189,9 +179,12 @@ export default function Dashboard() {
                             }).format(d);
 
                             return (
-                                <div
+                                <a
                                     key={i}
-                                    className="p-3 rounded-xl bg-white/5 border border-sky-300/20"
+                                    href={item.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block p-3 rounded-xl bg-white/5 border border-sky-300/20 hover:bg-white/10 transition"
                                 >
                                     <div className="flex justify-between">
                                         <p className="font-medium text-white">
@@ -208,10 +201,9 @@ export default function Dashboard() {
                                                     : "text-gray-300"
                                         }`}
                                     >
-                                        {item.sentiment.label} (
-                                        {item.sentiment.score.toFixed(2)})
+                                        {item.sentiment.label} ({item.sentiment.score.toFixed(2)})
                                     </p>
-                                </div>
+                                </a>
                             );
                         })}
                 </div>

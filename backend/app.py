@@ -1,6 +1,6 @@
-# In backend/app.py
 import os
-import sys # Import the sys module
+import sys
+import re
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from services.news_fetcher import fetch_news
@@ -31,6 +31,17 @@ ALPHAVANTAGE_KEY = os.getenv("ALPHAVANTAGE_KEY")
 stocks_json_path = resource_path("stocks.json")
 with open(stocks_json_path, "r") as f:
     LOCAL_STOCKS = json.load(f)
+
+def extract_symbols(text):
+    """Extracts potential stock symbols from a string of text."""
+    # A simple regex to find capitalized words/symbols
+    potential_symbols = set(re.findall(r'\b[A-Z]{1,5}\b', text))
+
+    # Filter against our known list of stocks for better accuracy
+    known_symbols = {stock['symbol'] for stock in LOCAL_STOCKS}
+
+    # Return the intersection, limited to 5
+    return list(potential_symbols.intersection(known_symbols))[:5]
 
 # --- All of your @app.route functions remain exactly the same below ---
 
@@ -128,6 +139,25 @@ def price_history():
         })
 
     return jsonify(result)
+
+@app.route("/trending_news", methods=["GET"])
+def get_trending_news():
+    # Use a general query for broad financial news
+    articles = fetch_news("finance OR markets")
+
+    analyzed = []
+    for a in articles:
+        # For each article, extract affected stocks
+        affected_stocks = extract_symbols(a['title'])
+        analyzed.append({
+            "title": a["title"],
+            "time": a["time"],
+            "url": a["url"],
+            "sentiment": analyze_sentiment(a["title"]),
+            "affected_stocks": affected_stocks,
+        })
+
+    return jsonify(analyzed)
 
 if __name__ == "__main__":
     app.run(debug=True)

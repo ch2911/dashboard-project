@@ -5,6 +5,7 @@ import {
     fetchSentiment,
     fetchPrice,
     fetchPriceHistory,
+    type SentimentResult,
 } from "../../../../../utils/api";
 import { usePinnedStocks } from "../../../../../hooks/usePinnedStocks";
 
@@ -17,15 +18,6 @@ import {
     ResponsiveContainer,
 } from "recharts";
 
-// ... (keep your type definitions here)
-type SentimentResult = {
-    title: string;
-    time: string;
-    sentiment: {
-        label: string;
-        score: number;
-    };
-};
 
 type StockPrice = {
     ticker: string;
@@ -147,26 +139,27 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                         }).format(d);
 
                         return (
-                            <div
+                            <a
                                 key={i}
-                                className="p-3 rounded-xl bg-white/5 border border-sky-300/20"
+                                href={item.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block p-3 rounded-xl bg-white/5 border border-sky-300/20 hover:bg-white/10 transition"
                             >
                                 <div className="flex justify-between">
                                     <p className="font-medium text-white">{item.title}</p>
                                     <span className="text-sm text-sky-200">{prettyTime}</span>
                                 </div>
-                                <p
-                                    className={`text-sm mt-1 ${
-                                        item.sentiment.label === "positive"
-                                            ? "text-green-400"
-                                            : item.sentiment.label === "negative"
-                                                ? "text-red-400"
-                                                : "text-gray-300"
-                                    }`}
-                                >
+                                <p className={`text-sm mt-1 ${
+                                    item.sentiment.label === "positive"
+                                        ? "text-green-400"
+                                        : item.sentiment.label === "negative"
+                                            ? "text-red-400"
+                                            : "text-gray-300"
+                                }`}>
                                     {item.sentiment.label} ({item.sentiment.score.toFixed(2)})
                                 </p>
-                            </div>
+                            </a>
                         );
                     })}
                 </div>

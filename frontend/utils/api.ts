@@ -1,6 +1,7 @@
-type SentimentResult = {
+export type SentimentResult = {
     title: string;
-    time: string; // ISO timestamp from backend
+    time: string;
+    url: string;
     sentiment: {
         label: string;
         score: number;

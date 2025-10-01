@@ -13,9 +13,10 @@ def fetch_news(query="Tesla"):
     results = []
     for a in articles:
         title = a.get("title", "") or ""
+        article_url = a.get("url", "")
         published = a.get("publishedAt")
         if not published:
             published = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-        results.append({"title": title, "time": published})
+        results.append({"title": title, "time": published, "url": article_url})
     return results
 

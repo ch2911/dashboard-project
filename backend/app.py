@@ -9,6 +9,7 @@ import yfinance as yf
 import requests
 import json
 from dotenv import load_dotenv
+from services.predictor import predict_stock_price
 
 # This helper function finds the correct path for bundled files
 def resource_path(relative_path):
@@ -54,6 +55,7 @@ def get_sentiment():
         {
             "title": a["title"],
             "time": a["time"],
+            "url": a["url"],
             "sentiment": analyze_sentiment(a["title"])
         }
         for a in articles
@@ -158,6 +160,12 @@ def get_trending_news():
         })
 
     return jsonify(analyzed)
+
+@app.route("/predict", methods=["GET"])
+def get_prediction():
+    ticker = request.args.get("stock", "TSLA")
+    predictions = predict_stock_price(ticker)
+    return jsonify(predictions)
 
 if __name__ == "__main__":
     app.run(debug=True)

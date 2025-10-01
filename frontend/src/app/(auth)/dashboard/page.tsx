@@ -73,7 +73,6 @@ export default function Dashboard() {
     }, [pinned]);
 
 
-    // Build combined chart data (align on timestamps)
     const chartData = (() => {
         if (!pinned.length) return [];
         const first = histories[pinned[0]];

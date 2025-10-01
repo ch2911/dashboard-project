@@ -5,6 +5,7 @@ import {
     fetchSentiment,
     fetchPrice,
     fetchPriceHistory,
+    fetchPrediction,
     type SentimentResult,
 } from "../../../../../utils/api";
 import { usePinnedStocks } from "../../../../../hooks/usePinnedStocks";
@@ -16,7 +17,9 @@ import {
     YAxis,
     Tooltip,
     ResponsiveContainer,
+    Legend,
 } from "recharts";
+import {underline} from "next/dist/lib/picocolors";
 
 
 type StockPrice = {
@@ -30,8 +33,13 @@ type PricePoint = {
     price: number;
 };
 
+type ChartDataPoint = {
+    name: string;
+    price?: number;
+    prediction?: number;
+};
 
-// Accept ticker as a prop
+
 export default function StockPageClient({ ticker }: { ticker: string }) {
     const { pinned, pinStock, unpinStock } = usePinnedStocks();
     const isPinned = pinned.includes(ticker);
@@ -39,42 +47,71 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
     const [price, setPrice] = useState<StockPrice | null>(null);
     const [history, setHistory] = useState<PricePoint[]>([]);
     const [sentiment, setSentiment] = useState<SentimentResult[]>([]);
+    const [prediction, setPrediction] = useState<PricePoint[]>([]);
 
     useEffect(() => {
         if (!ticker) return;
 
-        fetchPrice(ticker).then(setPrice);
-        fetchPriceHistory(ticker).then(setHistory);
-        fetchSentiment(ticker).then(setSentiment);
+        setLoading(true); // Set loading state
+        Promise.all([
+            fetchPrice(ticker),
+            fetchPriceHistory(ticker),
+            fetchSentiment(ticker),
+            fetchPrediction(ticker), // 3. Fetch prediction data
+        ]).then(([priceData, historyData, sentimentData, predictionData]) => {
+            setPrice(priceData);
+            setHistory(historyData);
+            setSentiment(sentimentData);
+            setPrediction(predictionData);
+            setLoading(false); // Clear loading state
+        });
     }, [ticker]);
 
-    const chartData = history.map((pt) => {
-        const d = new Date(pt.time);
-        const timeLabel = new Intl.DateTimeFormat("en-GB", {
-            hour: "2-digit",
-            minute: "2-digit",
-            timeZone: "Europe/London",
-        }).format(d);
+    const [loading, setLoading] = useState(true);
 
-        return { timeLabel, price: pt.price };
-    });
+    const combinedChartData = (() => {
+        if (!history.length) return [];
+
+        const historicalPoints: ChartDataPoint[] = history.map((pt) => {
+            const d = new Date(pt.time);
+            const timeLabel = new Intl.DateTimeFormat("en-GB", {
+                hour: "2-digit", minute: "2-digit", timeZone: "Europe/London",
+            }).format(d);
+            return { name: timeLabel, price: pt.price};
+        });
+
+        if (!prediction.length) return historicalPoints;
+
+        const lastHistoryPoint = historicalPoints[historicalPoints.length - 1];
+
+        lastHistoryPoint.prediction = lastHistoryPoint.price;
+
+        const predictionPoints = prediction.map((pt) => {
+            const d = new Date(pt.time);
+            const timeLabel = new Intl.DateTimeFormat("en-GB", {
+                day: '2-digit', month: 'short'
+            }).format(d);
+            return { name: timeLabel, prediction: pt.price };
+        });
+
+        return [...historicalPoints, ...predictionPoints];
+    })();
+
+
+    if (loading) {
+        return <div className="text-center p-10">Loading stock data...</div>
+    }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-sky-900 via-sky-700 to-sky-500 text-white p-6">
+        <div className="p-6">
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-3xl font-bold">{ticker}</h1>
                 {isPinned ? (
-                    <button
-                        onClick={() => unpinStock(ticker)}
-                        className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg shadow-md"
-                    >
+                    <button onClick={() => unpinStock(ticker)} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg shadow-md">
                         Unpin
                     </button>
                 ) : (
-                    <button
-                        onClick={() => pinStock(ticker)}
-                        className="bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg shadow-md"
-                    >
+                    <button onClick={() => pinStock(ticker)} className="bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg shadow-md">
                         Pin
                     </button>
                 )}
@@ -82,42 +119,37 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
 
             {/* Stock Info */}
             <section className="bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-md mb-6">
-                <h2 className="text-xl font-semibold mb-3">Stock Overview</h2>
-                {price ? (
-                    <div>
-                        <p className="text-sky-200">Company: {ticker}</p>
-                        <p>
-                            Price:{" "}
-                            <span className="font-bold text-white">${price.price}</span>{" "}
-                            <span
-                                className={`ml-2 font-bold ${
-                                    price.change > 0 ? "text-green-400" : "text-red-400"
-                                }`}
-                            >
-                {price.change}% today
-              </span>
-                        </p>
-                    </div>
-                ) : (
-                    <p className="text-sky-200">Loading price...</p>
-                )}
+                {/* ... (This section remains the same) ... */}
             </section>
 
             {/* Price Chart */}
             <section className="bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-md mb-6">
-                <h2 className="text-xl font-semibold mb-3">Price Over Time</h2>
-                <div className="w-full h-64">
+                <h2 className="text-xl font-semibold mb-3">Price Chart & Prediction</h2>
+                <div className="w-full h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={chartData}>
-                            <XAxis dataKey="timeLabel" stroke="#bae6fd" />
-                            <YAxis stroke="#bae6fd" domain={["dataMin", "dataMax"]} />
+                        {/* 5. Update the chart with the new data and lines */}
+                        <LineChart data={combinedChartData}>
+                            <XAxis dataKey="name" stroke="#bae6fd" />
+                            <YAxis stroke="#bae6fd" domain={['dataMin - 1', 'dataMax + 1']} />
                             <Tooltip />
+                            <Legend />
                             <Line
+                                name="Historical Price"
                                 type="monotone"
                                 dataKey="price"
                                 stroke="#38bdf8"
                                 strokeWidth={2}
                                 dot={false}
+                                connectNulls
+                            />
+                            <Line
+                                name="Predicted price"
+                                type="monotone"
+                                dataKey="prediction"
+                                stroke="#4ade80"
+                                strokeWidth={2}
+                                strokeDasharray="5 5" // This makes the line dashed
+                                connectNulls
                             />
                         </LineChart>
                     </ResponsiveContainer>
@@ -150,13 +182,15 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                                     <p className="font-medium text-white">{item.title}</p>
                                     <span className="text-sm text-sky-200">{prettyTime}</span>
                                 </div>
-                                <p className={`text-sm mt-1 ${
-                                    item.sentiment.label === "positive"
-                                        ? "text-green-400"
-                                        : item.sentiment.label === "negative"
-                                            ? "text-red-400"
-                                            : "text-gray-300"
-                                }`}>
+                                <p
+                                    className={`text-sm mt-1 ${
+                                        item.sentiment.label === "positive"
+                                            ? "text-green-400"
+                                            : item.sentiment.label === "negative"
+                                                ? "text-red-400"
+                                                : "text-gray-300"
+                                    }`}
+                                >
                                     {item.sentiment.label} ({item.sentiment.score.toFixed(2)})
                                 </p>
                             </a>

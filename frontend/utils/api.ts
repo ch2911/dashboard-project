@@ -34,3 +34,9 @@ export async function searchStocks(query: string): Promise<{symbol: string; name
     return res.json();
 }
 
+export async function fetchPrediction(stock: string = "TSLA") {
+    const res = await fetch(`http://127.0.0.1:5000/predict?stock=${stock}`);
+    if (!res.ok) return [];
+    return res.json();
+}
+

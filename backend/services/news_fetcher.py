@@ -1,11 +1,13 @@
+import os
 import requests
 from datetime import datetime, timezone
 
-API_KEY = "REMOVED_NEWSAPI_KEY"
 BASE_URL = "https://newsapi.org/v2/everything"
 
 def fetch_news(query="Tesla"):
-    url = f"{BASE_URL}?q={query}&language=en&sortBy=publishedAt&apiKey={API_KEY}"
+    # Read at call time so app.py's load_dotenv() has already run
+    api_key = os.getenv("NEWSAPI_KEY")
+    url = f"{BASE_URL}?q={query}&language=en&sortBy=publishedAt&apiKey={api_key}"
     response = requests.get(url)
     data = response.json()
     articles = data.get("articles", [])[:20]

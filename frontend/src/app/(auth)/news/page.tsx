@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { API_URL } from "../../../../utils/api";
 
 // Define the type for our new data structure
 type TrendingArticle = {
@@ -19,7 +20,7 @@ export default function NewsPage() {
     useEffect(() => {
         async function loadNews() {
             setLoading(true);
-            const res = await fetch("http://127.0.0.1:5000/trending_news");
+            const res = await fetch(`${API_URL}/trending_news`);
             const data = await res.json();
             setArticles(data);
             setLoading(false);

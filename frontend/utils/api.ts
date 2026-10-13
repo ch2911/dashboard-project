@@ -1,5 +1,5 @@
 // Backend URL: set NEXT_PUBLIC_API_URL when deploying; defaults to the local Flask server
-export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:5000").replace(/\/$/, "");
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000").replace(/\/$/, "");
 
 export type SentimentResult = {
     title: string;

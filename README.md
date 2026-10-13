@@ -1,10 +1,13 @@
 # Stock Dashboard
 
+[![CI/CD](https://github.com/ch2911/dashboard-project/actions/workflows/ci.yml/badge.svg)](https://github.com/ch2911/dashboard-project/actions/workflows/ci.yml)
+
 A full-stack stock market dashboard with live prices, a 7-day price forecast and sentiment analysis of the latest news headlines. Users sign in to pin the stocks they follow.
 
 Built with Next.js (TypeScript) and a Python Flask API.
 
-<!-- Live demo: add the Vercel link here once deployed -->
+**Live demo:** [ch2911.github.io/dashboard-project](https://ch2911.github.io/dashboard-project/). The API sleeps when nobody has used it for a while, so the first load can take up to a minute.
+
 <!-- Screenshots: put images in docs/ and reference them here, e.g. ![Dashboard](docs/dashboard.png) -->
 
 ## Features
@@ -35,6 +38,7 @@ flowchart LR
 | Frontend | Next.js 14, React, TypeScript, Tailwind CSS, Recharts |
 | Backend | Python, Flask, pandas, statsmodels, vaderSentiment, yfinance |
 | Data and accounts | Supabase (Postgres and Auth), NewsAPI, Alpha Vantage |
+| Testing and deployment | pytest, Vitest, GitHub Actions, GitHub Pages, Render |
 
 ```
 dashboard-project/
@@ -44,12 +48,15 @@ dashboard-project/
 │   │   ├── news_fetcher.py  # headlines from NewsAPI
 │   │   ├── predictor.py     # ARIMA price forecast
 │   │   └── sentiment.py     # VADER sentiment scores
+│   ├── tests/               # pytest suite (external APIs are faked)
 │   ├── stocks.json          # the 69 stocks used for search and stock pages
-│   └── requirements.txt
+│   ├── requirements.txt
+│   └── requirements-dev.txt # adds pytest for running the tests
 ├── frontend/
 │   ├── src/app/             # pages: login, dashboard, news, stocks/[ticker]
 │   ├── components/  hooks/  lib/  utils/
 │   └── package.json
+├── .github/workflows/ci.yml # tests, then deploys to GitHub Pages
 ├── main.js                  # optional Electron desktop wrapper
 └── .env.example
 ```
@@ -139,15 +146,36 @@ By default the app signs users in through the author's Supabase project. To use 
 
 3. Replace the URL and anon key in `frontend/lib/supabaseClient.ts` with your project's own, from Project Settings → API.
 
+## Running the tests
+
+The backend tests replace Yahoo Finance, NewsAPI and Alpha Vantage with fakes, so they run without API keys or a network connection.
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest --cov=app --cov=services
+```
+
+The frontend tests check the helpers that call the API:
+
+```bash
+cd frontend
+npm test
+```
+
 ## Deployment
 
-The frontend is built as static pages and hosted on Vercel. The Flask API runs separately on Render.
+Every push and pull request runs the GitHub Actions workflow in `.github/workflows/ci.yml`:
 
-| Service | Settings |
+1. **Backend tests:** the pytest suite, with a coverage report.
+2. **Frontend tests and build:** the Vitest tests, then `next build`, which also lints and type-checks the code.
+3. **Deploy:** on `main`, once both jobs pass, the static site is published to GitHub Pages. Render's auto-deploy waits for the same checks, so the API only updates when the tests pass.
+
+| Service | Setup |
 | --- | --- |
-| Render (API) | Web service with root directory `backend`, build command `pip install -r requirements.txt` and start command `gunicorn app:app`. Environment variables: `ALPHAVANTAGE_KEY`, `NEWSAPI_KEY` and `PYTHON_VERSION=3.12.7`. |
-| Vercel (frontend) | Root directory `frontend`, with the environment variable `NEXT_PUBLIC_API_URL` set to the Render URL. |
-| Supabase | Under Authentication → URL Configuration, set the Site URL to the Vercel URL so confirmation emails link back to the live site. |
+| GitHub Pages (frontend) | In the repo's Settings → Pages, set Source to **GitHub Actions**. Under Settings → Secrets and variables → Actions → Variables, add `API_URL` set to the Render URL. |
+| Render (API) | Web service with root directory `backend`, build command `pip install -r requirements.txt`, start command `gunicorn app:app`, and Auto-Deploy set to **After CI Checks Pass**. Environment variables: `ALPHAVANTAGE_KEY`, `NEWSAPI_KEY` and `PYTHON_VERSION=3.12.7`. |
+| Supabase | Under Authentication → URL Configuration, set the Site URL to the GitHub Pages address so confirmation emails link back to the live site. |
 
 ## Desktop app
 

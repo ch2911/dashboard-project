@@ -63,7 +63,6 @@ dashboard-project/
 │   ├── ci.yml               # tests, then deploys to GitHub Pages
 │   └── smoke-test.yml       # checks the live site every morning
 ├── scripts/smoke_test.py    # the checks the smoke test runs
-├── main.js                  # optional Electron desktop wrapper
 └── .env.example
 ```
 
@@ -193,10 +192,6 @@ A second workflow, `.github/workflows/smoke-test.yml`, runs the smoke test again
 | GitHub Pages (frontend) | In the repo's Settings → Pages, set Source to **GitHub Actions**. Under Settings → Secrets and variables → Actions → Variables, add `API_URL` set to the Render URL. |
 | Render (API) | Web service with root directory `backend`, build command `pip install -r requirements.txt`, start command `gunicorn app:app`, and Auto-Deploy set to **After CI Checks Pass**. Environment variables: `ALPHAVANTAGE_KEY`, `NEWSAPI_KEY` and `PYTHON_VERSION=3.12.7`. |
 | Supabase | Under Authentication → URL Configuration, set the Site URL to the GitHub Pages address so confirmation emails link back to the live site. |
-
-## Desktop app
-
-`main.js` wraps the app in Electron. It serves the static frontend build (`frontend/out`) and launches a PyInstaller build of the backend (`backend/dist/app`). Running `npm run dist` in the project folder packages it as a macOS `.dmg`.
 
 ## Notes
 

@@ -18,6 +18,7 @@ def block_real_apis(monkeypatch):
         raise AssertionError("A test tried to call a real external API")
 
     monkeypatch.setattr("requests.get", blocked)
+    monkeypatch.setattr("requests.delete", blocked)
     monkeypatch.setattr("yfinance.Ticker", blocked)
 
 

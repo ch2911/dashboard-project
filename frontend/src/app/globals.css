@@ -2,5 +2,83 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
+/* Accent colours. tailwind.config.ts points every sky-* class at these, so picking an accent on
+   the settings page recolours the whole app. Values are Tailwind's own palettes, as "r g b" so
+   opacity classes like bg-sky-700/50 still work. utils/theme.ts lists the accents. */
+:root,
+[data-accent="ocean"] {
+    --accent-50: 240 249 255;
+    --accent-100: 224 242 254;
+    --accent-200: 186 230 253;
+    --accent-300: 125 211 252;
+    --accent-400: 56 189 248;
+    --accent-500: 14 165 233;
+    --accent-600: 2 132 199;
+    --accent-700: 3 105 161;
+    --accent-800: 7 89 133;
+    --accent-900: 12 74 110;
+    --accent-950: 8 47 73;
+}
+
+[data-accent="indigo"] {
+    --accent-50: 238 242 255;
+    --accent-100: 224 231 255;
+    --accent-200: 199 210 254;
+    --accent-300: 165 180 252;
+    --accent-400: 129 140 248;
+    --accent-500: 99 102 241;
+    --accent-600: 79 70 229;
+    --accent-700: 67 56 202;
+    --accent-800: 55 48 163;
+    --accent-900: 49 46 129;
+    --accent-950: 30 27 75;
+}
+
+[data-accent="violet"] {
+    --accent-50: 245 243 255;
+    --accent-100: 237 233 254;
+    --accent-200: 221 214 254;
+    --accent-300: 196 181 253;
+    --accent-400: 167 139 250;
+    --accent-500: 139 92 246;
+    --accent-600: 124 58 237;
+    --accent-700: 109 40 217;
+    --accent-800: 91 33 182;
+    --accent-900: 76 29 149;
+    --accent-950: 46 16 101;
+}
+
+[data-accent="graphite"] {
+    --accent-50: 248 250 252;
+    --accent-100: 241 245 249;
+    --accent-200: 226 232 240;
+    --accent-300: 203 213 225;
+    --accent-400: 148 163 184;
+    --accent-500: 100 116 139;
+    --accent-600: 71 85 105;
+    --accent-700: 51 65 85;
+    --accent-800: 30 41 59;
+    --accent-900: 15 23 42;
+    --accent-950: 2 6 23;
+}
+
+
+/* The page background. Light mode is the original bright gradient; dark mode is near-black
+   with a hint of the accent. */
+.app-bg {
+    background-image: linear-gradient(
+        to bottom right,
+        rgb(var(--accent-900)),
+        rgb(var(--accent-700)),
+        rgb(var(--accent-500))
+    );
+}
+
+[data-theme="dark"] .app-bg {
+    background-image: linear-gradient(
+        to bottom right,
+        rgb(3 7 18),
+        rgb(var(--accent-950)),
+        rgb(var(--accent-900))
+    );
 }

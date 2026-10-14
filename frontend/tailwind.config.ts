@@ -10,7 +10,17 @@ const config: Config = {
         "./hooks/**/*.{js,ts,jsx,tsx,mdx}",     // And hooks folder
     ],
     theme: {
-        extend: {},
+        extend: {
+            // sky-* follows the accent chosen on the settings page (see globals.css)
+            colors: {
+                sky: Object.fromEntries(
+                    ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950"].map((shade) => [
+                        shade,
+                        `rgb(var(--accent-${shade}) / <alpha-value>)`,
+                    ]),
+                ),
+            },
+        },
     },
     plugins: [],
 };

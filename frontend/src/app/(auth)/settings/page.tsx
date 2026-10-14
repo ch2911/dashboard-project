@@ -11,8 +11,8 @@ import { ACCENTS, MODES, DEFAULT_THEME, loadTheme, saveTheme, type ThemeSettings
 // Each part of the page is its own section. Price alert emails link here (/settings/).
 export default function SettingsPage() {
     return (
-        <div className="max-w-2xl space-y-6">
-            <h1 className="text-3xl font-bold">⚙️ Settings</h1>
+        <div className="max-w-2xl mx-auto space-y-6">
+            <h1 className="text-2xl sm:text-3xl font-bold">⚙️ Settings</h1>
             <AppearanceSection />
             <PriceAlertSettings />
             <AccountSection />

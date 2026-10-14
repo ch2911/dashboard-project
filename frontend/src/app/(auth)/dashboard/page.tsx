@@ -15,6 +15,7 @@ import {
 import SlowServerNotice from "../../../../components/SlowServerNotice";
 import { stockPageHref } from "../../../../utils/stockLinks";
 import { seriesColor } from "../../../../utils/chartColors";
+import { useSeriesColors } from "../../../../hooks/useSeriesColors";
 import PortfolioTooltip, { type TooltipRow } from "../../../../components/PortfolioTooltip";
 
 import {
@@ -34,6 +35,7 @@ type ChartDataPoint = {
 
 export default function Dashboard() {
     const { pinned, loading: pinnedLoading } = usePinnedStocks();
+    const colors = useSeriesColors(pinned);
 
     const [timeRange, setTimeRange] = useState<'daily' | 'intraday'>('daily');
 
@@ -189,27 +191,27 @@ export default function Dashboard() {
                                 )}
                             />
                             <Legend formatter={(value) => <span className="text-sky-100">{value}</span>} />
-                            {pinned.map((ticker, i) => (
+                            {pinned.map((ticker) => (
                                 <Line
                                     key={ticker}
                                     name={ticker}
                                     type="monotone"
                                     dataKey={ticker}
                                     strokeWidth={2}
-                                    stroke={seriesColor(i)}
+                                    stroke={seriesColor(colors, ticker)}
                                     dot={false}
                                     connectNulls
                                 />
                             ))}
                             {/* Each forecast is a dashed line in its stock's colour. It's left out of the legend,
                                 which already names the stock. */}
-                            {pinned.map((ticker, i) => (
+                            {pinned.map((ticker) => (
                                 <Line
                                     key={`${ticker}-pred`}
                                     name={`${ticker} forecast`}
                                     type="monotone"
                                     dataKey={`${ticker}-pred`}
-                                    stroke={seriesColor(i)}
+                                    stroke={seriesColor(colors, ticker)}
                                     strokeWidth={2}
                                     strokeDasharray="4 4"
                                     dot={false}
@@ -239,7 +241,7 @@ export default function Dashboard() {
                     <p className="text-sky-200">You haven&apos;t pinned any stocks yet. Search for one above and press Pin.</p>
                 )}
                 <ul className="space-y-3">
-                    {pinned.map((ticker, i) => {
+                    {pinned.map((ticker) => {
                         const stock = prices[ticker];
                         return (
                             <li key={ticker}>
@@ -249,7 +251,7 @@ export default function Dashboard() {
                                 >
                                     <span className="flex items-center gap-2 font-bold text-lg">
                                         {/* Same colour as this stock's line on the chart */}
-                                        <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: seriesColor(i) }} aria-hidden="true" />
+                                        <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: seriesColor(colors, ticker) }} aria-hidden="true" />
                                         {ticker}
                                     </span>
                                     {stock ? (

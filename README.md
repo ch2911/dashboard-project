@@ -56,7 +56,7 @@ dashboard-project/
 │   ├── send_price_alerts.py # emails users about big daily moves (run by GitHub Actions)
 │   ├── stocks.json          # the 69 stocks searched before falling back to Alpha Vantage
 │   ├── requirements.txt
-│   └── requirements-dev.txt # adds pytest for running the tests
+│   └── requirements-dev.txt # adds pytest and pytest-cov for running the tests
 ├── frontend/
 │   ├── src/app/             # pages: login, dashboard, news, stocks (any ticker: /stocks/?ticker=AAPL)
 │   ├── components/  hooks/  lib/  utils/
@@ -182,15 +182,15 @@ To open alerts to everyone: verify a domain in Resend, change `ALERT_FROM_EMAIL`
 
 ## Running the tests
 
-The backend tests replace Yahoo Finance, NewsAPI and Alpha Vantage with fakes, so they run without API keys or a network connection.
+The backend tests replace Yahoo Finance, NewsAPI, Alpha Vantage, Supabase and Resend with fakes, so they run without API keys or a network connection. They also cover the price alert job and the smoke test script. CI fails if coverage drops below 95%.
 
 ```bash
 cd backend
 pip install -r requirements-dev.txt
-pytest --cov=app --cov=services
+pytest --cov=app --cov=services --cov=send_price_alerts --cov=../scripts --cov-fail-under=95
 ```
 
-The frontend tests check the helpers that call the API, including what happens when a request fails or times out:
+The frontend tests check the helpers that call the API, the theme and chart colour logic, the pinned-stock and sign-in hooks, and the login, settings and search screens (rendered in jsdom with Supabase faked). `npm run test:coverage` adds a coverage report:
 
 ```bash
 cd frontend
@@ -209,8 +209,8 @@ python scripts/smoke_test.py https://your-api.onrender.com
 
 Every push and pull request runs the GitHub Actions workflow in `.github/workflows/ci.yml`:
 
-1. **Backend tests:** the pytest suite, with a coverage report.
-2. **Frontend tests and build:** the Vitest tests, then `next build`, which also lints and type-checks the code.
+1. **Backend tests:** the pytest suite, with a coverage report. It fails below 95% coverage.
+2. **Frontend tests and build:** the Vitest tests with a coverage report, then `next build`, which also lints and type-checks the code.
 3. **Deploy:** on `main`, once both jobs pass, the static site is published to GitHub Pages. Render's auto-deploy waits for the same checks, so the API only updates when the tests pass.
 
 A second workflow, `.github/workflows/smoke-test.yml`, runs the smoke test against the live site every morning. It can also be started from the Actions tab after a deploy.

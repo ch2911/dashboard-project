@@ -34,7 +34,11 @@ function createWindow() {
         width: 1400,
         height: 900,
         webPreferences: {
-            nodeIntegration: true,
+            // The dashboard is a plain web app and never needs Node in the
+            // page, so keep it sandboxed and isolated from Electron's APIs.
+            nodeIntegration: false,
+            contextIsolation: true,
+            sandbox: true,
         },
     });
 

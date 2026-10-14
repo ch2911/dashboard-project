@@ -10,6 +10,7 @@ def install_newsapi(monkeypatch, payload):
 
     def fake_get(url, *args, **kwargs):
         seen["url"] = url
+        seen.update(kwargs)
         return FakeResponse(payload)
 
     monkeypatch.setattr("requests.get", fake_get)
@@ -22,8 +23,10 @@ def test_uses_api_key_from_environment(monkeypatch):
 
     fetch_news("AAPL")
 
-    assert "apiKey=test-key" in seen["url"]
-    assert "q=AAPL" in seen["url"]
+    assert seen["headers"]["X-Api-Key"] == "test-key"
+    assert "test-key" not in seen["url"]  # keeps the key out of URLs and error logs
+    assert seen["params"]["q"] == "AAPL"
+    assert seen["timeout"] == 10
 
 
 def test_returns_at_most_20_articles(monkeypatch):

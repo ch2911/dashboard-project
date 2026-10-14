@@ -1,19 +1,49 @@
+import time
+import warnings
+
+import pandas as pd
 import yfinance as yf
 from statsmodels.tsa.arima.model import ARIMA
-import pandas as pd
+
+# Forecasts only change when new prices come in, so each ticker's forecast is reused for an
+# hour. Failed forecasts aren't cached, so they're retried on the next request.
+CACHE_SECONDS = 60 * 60
+_forecast_cache = {}  # ticker -> (time it was made, forecast)
+
+
+def clear_cache():
+    _forecast_cache.clear()
+
 
 def predict_stock_price(ticker):
+    key = ticker.upper()
+    cached = _forecast_cache.get(key)
+    if cached and time.monotonic() - cached[0] < CACHE_SECONDS:
+        return cached[1]
+
+    forecast = _make_forecast(ticker)
+    if forecast:
+        _forecast_cache[key] = (time.monotonic(), forecast)
+    return forecast
+
+
+def _make_forecast(ticker):
     try:
-        # 1. FETCH MORE DATA: Changed from "3mo" to "6mo" for better long-term context.
+        # Six months of daily closing prices
         stock_data = yf.Ticker(ticker).history(period="6mo", interval="1d")
         if stock_data.empty:
             return []
 
-        # 2. TWEAK THE MODEL: Changed order from (5,1,0) to (10,1,0).
-        # This makes the model look at the last 10 days (instead of 5) to predict the next point,
-        # making it more sensitive to the most recent trend.
-        model = ARIMA(stock_data['Close'], order=(10,1,0))
-        model_fit = model.fit()
+        # ARIMA(10,1,0): each day's change depends on the previous 10 days' changes.
+        # Burg's method estimates this directly instead of by iterative maximum likelihood.
+        # It uses about a sixth of the CPU and gives near-identical forecasts, which matters
+        # on a small server.
+        model = ARIMA(stock_data["Close"], order=(10, 1, 0))
+        with warnings.catch_warnings():
+            # Burg's method works on the daily changes, so statsmodels warns that it differenced
+            # the prices first. That's expected, so keep it out of the server logs.
+            warnings.filterwarnings("ignore", message="Provided `endog` series has been differenced")
+            model_fit = model.fit(method="burg")
 
         # Predict the next 7 days
         predictions = model_fit.forecast(steps=7)
@@ -23,7 +53,7 @@ def predict_stock_price(ticker):
         future_dates = pd.to_datetime([last_date + pd.DateOffset(days=i) for i in range(1, 8)])
 
         return [
-            {"time": date.isoformat(), "price": round(price, 2)}
+            {"time": date.isoformat(), "price": round(float(price), 2)}
             for date, price in zip(future_dates, predictions)
         ]
     except Exception as e:

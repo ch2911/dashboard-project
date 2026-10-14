@@ -1,8 +1,17 @@
 import os
+
+# Render's free plan gives this app a fraction of one CPU, but numpy's maths libraries start
+# one thread per core on the host machine. Those threads then fight over that small share and
+# make the forecast take over 30 seconds. One thread each avoids that. This has to run before
+# numpy is imported (yfinance and statsmodels import it).
+for _thread_var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_thread_var, "1")
+
 import sys
 import re
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from werkzeug.exceptions import HTTPException
 from services.news_fetcher import fetch_news
 from services.sentiment import analyze_sentiment
 import yfinance as yf
@@ -24,6 +33,15 @@ def resource_path(relative_path):
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
+
+
+@app.errorhandler(Exception)
+def handle_error(error):
+    """Return errors as JSON so they still carry the CORS header and the frontend can read them."""
+    if isinstance(error, HTTPException):
+        return jsonify({"error": error.description}), error.code
+    app.logger.exception("Request to %s failed", request.full_path)
+    return jsonify({"error": "Something went wrong getting this data. Please try again."}), 500
 
 load_dotenv()
 ALPHAVANTAGE_KEY = os.getenv("ALPHAVANTAGE_KEY")
@@ -105,15 +123,20 @@ def search_stock():
 
 @app.route("/price", methods=["GET"])
 def get_price():
-    # ... (no changes needed here)
     ticker = request.args.get("stock", "TSLA")
-    stock = yf.Ticker(ticker)
-    data = stock.history(period="1d", interval="1m")  # intraday
-    if data.empty:
+    # Daily bars: the last one is today's (updated live during market hours) and the one
+    # before it is the previous close, so "change" is the day's move, as on a stock app.
+    data = yf.Ticker(ticker).history(period="5d", interval="1d")
+    closes = data["Close"].dropna() if "Close" in data else []
+    if len(closes) == 0:
         return jsonify({"error": "No data"}), 404
-    latest = data.tail(1)
-    price = latest["Close"].iloc[0]
-    change = ((latest["Close"].iloc[0] - latest["Open"].iloc[0]) / latest["Open"].iloc[0]) * 100
+
+    price = float(closes.iloc[-1])
+    if len(closes) > 1:
+        previous_close = float(closes.iloc[-2])
+        change = (price - previous_close) / previous_close * 100
+    else:
+        change = 0.0  # only one day of data, e.g. a new listing
 
     return jsonify({
         "ticker": ticker,

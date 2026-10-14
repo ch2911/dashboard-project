@@ -7,8 +7,9 @@ BASE_URL = "https://newsapi.org/v2/everything"
 def fetch_news(query="Tesla"):
     # Read at call time so app.py's load_dotenv() has already run
     api_key = os.getenv("NEWSAPI_KEY")
-    url = f"{BASE_URL}?q={query}&language=en&sortBy=publishedAt&apiKey={api_key}"
-    response = requests.get(url)
+    params = {"q": query, "language": "en", "sortBy": "publishedAt"}
+    # The key goes in a header rather than the URL, because URLs end up in error logs
+    response = requests.get(BASE_URL, params=params, headers={"X-Api-Key": api_key or ""}, timeout=10)
     data = response.json()
     articles = data.get("articles", [])[:20]
 

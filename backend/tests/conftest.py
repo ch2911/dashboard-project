@@ -7,6 +7,7 @@ BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BACKEND_DIR)
 
 import app as app_module  # noqa: E402
+from services import predictor  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -18,6 +19,14 @@ def block_real_apis(monkeypatch):
 
     monkeypatch.setattr("requests.get", blocked)
     monkeypatch.setattr("yfinance.Ticker", blocked)
+
+
+@pytest.fixture(autouse=True)
+def empty_forecast_cache():
+    """Start every test without cached forecasts from earlier tests."""
+    predictor.clear_cache()
+    yield
+    predictor.clear_cache()
 
 
 @pytest.fixture

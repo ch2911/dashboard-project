@@ -44,6 +44,7 @@ flowchart LR
 dashboard-project/
 ├── backend/
 │   ├── app.py               # Flask API with all the endpoints
+│   ├── gunicorn.conf.py     # server settings used on Render (threads, timeout)
 │   ├── services/
 │   │   ├── news_fetcher.py  # headlines from NewsAPI
 │   │   ├── predictor.py     # ARIMA price forecast

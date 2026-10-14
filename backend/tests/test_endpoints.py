@@ -193,3 +193,22 @@ def test_health_reports_which_keys_are_set(client, monkeypatch):
         "keys": {"newsapi": True, "alphavantage": False},
         "features": {"delete_profile": False},
     }
+
+
+@pytest.mark.parametrize("path", ["/price", "/price_history", "/sentiment", "/predict"])
+@pytest.mark.parametrize("bad", ["", "A" * 16, "AAPL;DROP", "../etc", "<script>"])
+def test_endpoints_refuse_things_that_are_not_tickers(client, path, bad):
+    # The autouse fixture fails the test if Yahoo Finance or NewsAPI is called
+    response = client.get(path, query_string={"stock": bad})
+
+    assert response.status_code == 400
+    assert "ticker" in response.get_json()["error"]
+
+
+def test_lower_case_tickers_are_accepted(client, fake_yfinance):
+    calls = fake_yfinance(make_prices(n=5))
+
+    data = client.get("/price?stock=brk-b").get_json()
+
+    assert data["ticker"] == "BRK-B"
+    assert calls[0]["ticker"] == "BRK-B"

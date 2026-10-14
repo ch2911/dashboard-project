@@ -100,3 +100,16 @@ def test_error_responses_are_not_cached(monkeypatch):
     fetch_news("AAPL")
 
     assert len(requests_made) == 2
+
+
+def test_drops_articles_whose_link_is_not_a_web_address(monkeypatch):
+    install_newsapi(monkeypatch, {"articles": [
+        {"title": "Script", "url": "javascript:alert(document.cookie)", "publishedAt": "2026-10-01T09:00:00Z"},
+        {"title": "Script in capitals", "url": "JavaScript:alert(1)", "publishedAt": "2026-10-01T09:00:00Z"},
+        {"title": "Data", "url": "data:text/html,<script>alert(1)</script>", "publishedAt": "2026-10-01T09:00:00Z"},
+        {"title": "No link", "url": None, "publishedAt": "2026-10-01T09:00:00Z"},
+        {"title": "Real", "url": "HTTPS://example.com/a", "publishedAt": "2026-10-01T09:00:00Z"},
+        {"title": "Plain http", "url": "http://example.com/b", "publishedAt": "2026-10-01T09:00:00Z"},
+    ]})
+
+    assert [article["title"] for article in fetch_news("AAPL")] == ["Real", "Plain http"]

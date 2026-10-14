@@ -31,8 +31,9 @@ def test_local_results_are_capped_at_10(client):
 def test_falls_back_to_alpha_vantage_when_no_local_match(client, monkeypatch):
     seen = {}
 
-    def fake_get(url, timeout):
+    def fake_get(url, timeout, params=None):
         seen["url"] = url
+        seen["params"] = params
         return FakeResponse({
             "bestMatches": [
                 {"1. symbol": "ASML", "2. name": "ASML Holding NV"},
@@ -45,12 +46,12 @@ def test_falls_back_to_alpha_vantage_when_no_local_match(client, monkeypatch):
     results = client.get("/search_stock?q=asml").get_json()
 
     assert results == [{"symbol": "ASML", "name": "ASML Holding NV"}]
-    assert "function=SYMBOL_SEARCH" in seen["url"]
-    assert "keywords=asml" in seen["url"]
+    assert seen["params"]["function"] == "SYMBOL_SEARCH"
+    assert seen["params"]["keywords"] == "asml"
 
 
 def test_alpha_vantage_failure_returns_500(client, monkeypatch):
-    def failing_get(url, timeout):
+    def failing_get(url, timeout, params=None):
         raise requests.ConnectionError("Alpha Vantage is down")
 
     monkeypatch.setattr("requests.get", failing_get)
@@ -64,8 +65,8 @@ def test_alpha_vantage_failure_returns_500(client, monkeypatch):
 def test_alpha_vantage_results_are_cached(client, monkeypatch):
     requests_made = []
 
-    def fake_get(url, timeout):
-        requests_made.append(url)
+    def fake_get(url, timeout, params=None):
+        requests_made.append(params)
         return FakeResponse({"bestMatches": [{"1. symbol": "ASML", "2. name": "ASML Holding NV"}]})
 
     monkeypatch.setattr("requests.get", fake_get)
@@ -80,8 +81,8 @@ def test_alpha_vantage_results_are_cached(client, monkeypatch):
 def test_alpha_vantage_limit_message_is_logged_and_not_cached(client, monkeypatch, caplog):
     requests_made = []
 
-    def fake_get(url, timeout):
-        requests_made.append(url)
+    def fake_get(url, timeout, params=None):
+        requests_made.append(params)
         return FakeResponse({"Information": "You have reached the 25 requests per day limit."})
 
     monkeypatch.setattr("requests.get", fake_get)
@@ -98,7 +99,7 @@ def test_alpha_vantage_limit_message_is_logged_and_not_cached(client, monkeypatc
 def test_connection_errors_do_not_log_the_api_key(client, monkeypatch, caplog):
     monkeypatch.setattr(app_module, "ALPHAVANTAGE_KEY", "secret-key-123")
 
-    def failing_get(url, timeout):
+    def failing_get(url, timeout, params=None):
         raise requests.ConnectionError(f"Max retries exceeded with url: {url}")
 
     monkeypatch.setattr("requests.get", failing_get)
@@ -108,3 +109,28 @@ def test_connection_errors_do_not_log_the_api_key(client, monkeypatch, caplog):
 
     assert "ConnectionError" in caplog.text
     assert "secret-key-123" not in caplog.text
+
+
+def test_search_text_cannot_add_its_own_alpha_vantage_parameters(client, monkeypatch):
+    seen = {}
+
+    def fake_get(url, timeout, params=None):
+        seen["url"] = url
+        seen["params"] = params
+        return FakeResponse({"bestMatches": []})
+
+    monkeypatch.setattr("requests.get", fake_get)
+
+    client.get("/search_stock?q=" + requests.utils.quote("zzz&function=LISTING_STATUS"))
+
+    # The whole search goes in "keywords" for requests to encode, not pasted into the URL
+    assert seen["url"] == "https://www.alphavantage.co/query"
+    assert seen["params"]["function"] == "SYMBOL_SEARCH"
+    assert seen["params"]["keywords"] == "zzz&function=listing_status"
+
+
+def test_overlong_search_is_refused_without_calling_alpha_vantage(client):
+    # The autouse fixture fails the test if Alpha Vantage is called
+    response = client.get("/search_stock?q=" + "x" * 51)
+
+    assert response.status_code == 400

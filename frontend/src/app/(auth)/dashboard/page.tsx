@@ -13,6 +13,7 @@ import {
     type StockPrice,
 } from "../../../../utils/api";
 import SlowServerNotice from "../../../../components/SlowServerNotice";
+import { stockPageHref } from "../../../../utils/stockLinks";
 
 import {
     LineChart,
@@ -225,7 +226,7 @@ export default function Dashboard() {
                         return (
                             <li key={ticker}>
                                 <Link
-                                    href={`/stocks/${ticker}`}
+                                    href={stockPageHref(ticker)}
                                     className="flex justify-between items-center p-3 rounded-xl bg-white/5 border border-sky-300/20 hover:bg-white/10 transition"
                                 >
                                     <span className="font-bold text-lg">{ticker}</span>

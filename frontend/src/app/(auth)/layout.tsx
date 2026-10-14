@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { searchStocks, type StockSuggestion } from "../../../utils/api";
+import { stockPageHref } from "../../../utils/stockLinks";
 import { supabase} from "../../../lib/supabaseClient";
 
 
@@ -64,7 +65,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
                                     onClick={() => {
                                         setQuery("");
                                         setSuggestions([]);
-                                        router.push(`/stocks/${s.symbol}`);
+                                        router.push(stockPageHref(s.symbol));
                                     }}
                                 >
                                     {s.symbol} — {s.name}

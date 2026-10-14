@@ -9,9 +9,9 @@ import {
     type PricePoint,
     type SentimentResult,
     type StockPrice,
-} from "../../../../../utils/api";
-import { usePinnedStocks } from "../../../../../hooks/usePinnedStocks";
-import SlowServerNotice from "../../../../../components/SlowServerNotice";
+} from "../../../../utils/api";
+import { usePinnedStocks } from "../../../../hooks/usePinnedStocks";
+import SlowServerNotice from "../../../../components/SlowServerNotice";
 
 import {
     LineChart,

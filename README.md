@@ -52,11 +52,11 @@ dashboard-project/
 │   │   ├── predictor.py     # ARIMA price forecast
 │   │   └── sentiment.py     # VADER sentiment scores
 │   ├── tests/               # pytest suite (external APIs are faked)
-│   ├── stocks.json          # the 69 stocks used for search and stock pages
+│   ├── stocks.json          # the 69 stocks searched before falling back to Alpha Vantage
 │   ├── requirements.txt
 │   └── requirements-dev.txt # adds pytest for running the tests
 ├── frontend/
-│   ├── src/app/             # pages: login, dashboard, news, stocks/[ticker]
+│   ├── src/app/             # pages: login, dashboard, news, stocks (any ticker: /stocks/?ticker=AAPL)
 │   ├── components/  hooks/  lib/  utils/
 │   └── package.json
 ├── .github/workflows/

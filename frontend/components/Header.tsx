@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { searchStocks } from "../utils/api";
+import { stockPageHref } from "../utils/stockLinks";
 import { useRouter } from "next/navigation";
 import { useAuth} from "../lib/useAuth";
 
@@ -50,7 +51,7 @@ export default function Header() {
                                     setQuery("");
                                     setSuggestions([]);
                                     console.log(s.symbol);
-                                    router.push(`/stocks/${s.symbol}`); // go to stock page
+                                    router.push(stockPageHref(s.symbol)); // go to stock page
                                 }}
                             >
                                 {s.symbol} — {s.name}

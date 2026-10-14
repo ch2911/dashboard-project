@@ -49,9 +49,11 @@ dashboard-project/
 │   │   ├── cache.py         # short-lived caches for prices, forecasts, news and searches
 │   │   ├── market_data.py   # Yahoo Finance prices, with retries
 │   │   ├── news_fetcher.py  # headlines from NewsAPI
+│   │   ├── price_alerts.py  # finds big daily moves in pinned stocks and emails them
 │   │   ├── predictor.py     # ARIMA price forecast
 │   │   └── sentiment.py     # VADER sentiment scores
 │   ├── tests/               # pytest suite (external APIs are faked)
+│   ├── send_price_alerts.py # emails users about big daily moves (run by GitHub Actions)
 │   ├── stocks.json          # the 69 stocks searched before falling back to Alpha Vantage
 │   ├── requirements.txt
 │   └── requirements-dev.txt # adds pytest for running the tests
@@ -61,7 +63,8 @@ dashboard-project/
 │   └── package.json
 ├── .github/workflows/
 │   ├── ci.yml               # tests, then deploys to GitHub Pages
-│   └── smoke-test.yml       # checks the live site every morning
+│   ├── smoke-test.yml       # checks the live site every morning
+│   └── price-alerts.yml     # sends price alert emails during market hours
 ├── scripts/smoke_test.py    # the checks the smoke test runs
 ├── main.js                  # optional Electron desktop wrapper
 └── .env.example
@@ -152,6 +155,20 @@ By default the app signs users in through the author's Supabase project. To use 
    ```
 
 3. Replace the URL and anon key in `frontend/lib/supabaseClient.ts` with your project's own, from Project Settings → API.
+
+## Price alert emails
+
+Users get an email when one of their pinned stocks moves at least a set percentage from the previous close in a day (5% unless they choose otherwise). Each stock is emailed at most once per user per trading day, and several moves are grouped into one email.
+
+`backend/send_price_alerts.py` does the checking. It runs every 30 minutes on weekdays during US market hours from `.github/workflows/price-alerts.yml`, rather than on Render, because the free Render server sleeps when idle. Emails go through [Resend](https://resend.com). `frontend/components/PriceAlertSettings.tsx` is a settings section where users turn alerts on or off and choose their threshold.
+
+To turn it on:
+
+1. Run `supabase/price_alerts.sql` once in the Supabase SQL editor. It adds the `alert_settings` and `alerts_sent` tables.
+2. In the GitHub repo, under Settings → Secrets and variables → Actions, add:
+   - secrets `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API keys) and `RESEND_API_KEY`
+   - variables `SUPABASE_URL` (e.g. `https://xxxx.supabase.co`) and `ALERT_FROM_EMAIL` (e.g. `Stock Dashboard <alerts@yourdomain.com>`, on a domain verified in Resend)
+3. Run the "Price alerts" workflow by hand from the Actions tab to check it works.
 
 ## Running the tests
 

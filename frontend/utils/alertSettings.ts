@@ -29,3 +29,11 @@ export function settingsFromRow(row: { enabled: boolean; threshold_percent: numb
     if (!row) return DEFAULT_ALERT_SETTINGS;
     return { enabled: row.enabled, thresholdPercent: Number(row.threshold_percent) };
 }
+
+// Demo mode: without a verified email domain, the email provider only delivers to the site
+// owner, so alerts are limited to the user whose Supabase id is in NEXT_PUBLIC_ALERT_OWNER_ID.
+// Without it set, everyone can use alerts.
+export function alertsAvailableTo(userId: string | undefined, ownerId: string | undefined): boolean {
+    if (!ownerId) return true;
+    return userId === ownerId;
+}

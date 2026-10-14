@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_ALERT_SETTINGS, parseThreshold, settingsFromRow } from "./alertSettings";
+import { DEFAULT_ALERT_SETTINGS, alertsAvailableTo, parseThreshold, settingsFromRow } from "./alertSettings";
 
 describe("parseThreshold", () => {
     it("accepts a percentage in range, rounded to two decimals", () => {
@@ -26,5 +26,18 @@ describe("settingsFromRow", () => {
 
     it("reads Postgres numerics, which arrive as strings", () => {
         expect(settingsFromRow({ enabled: false, threshold_percent: "7.50" })).toEqual({ enabled: false, thresholdPercent: 7.5 });
+    });
+});
+
+describe("alertsAvailableTo", () => {
+    it("lets everyone use alerts when no owner is set", () => {
+        expect(alertsAvailableTo("user-1", undefined)).toBe(true);
+        expect(alertsAvailableTo("user-1", "")).toBe(true);
+    });
+
+    it("limits alerts to the owner in demo mode", () => {
+        expect(alertsAvailableTo("owner", "owner")).toBe(true);
+        expect(alertsAvailableTo("someone", "owner")).toBe(false);
+        expect(alertsAvailableTo(undefined, "owner")).toBe(false);
     });
 });

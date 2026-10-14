@@ -1,5 +1,22 @@
+// Calls to the Flask API. Every helper returns a safe fallback (null or an empty list)
+// instead of throwing, so one failed request can't leave a page stuck on "Loading...".
+
 // Backend URL: set NEXT_PUBLIC_API_URL when deploying; defaults to the local Flask server
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000").replace(/\/$/, "");
+
+// Render's free plan can take about a minute to wake up, so give each request up to 90 seconds
+export const REQUEST_TIMEOUT_MS = 90_000;
+
+export type StockPrice = {
+    ticker: string;
+    price: number;
+    change: number;
+};
+
+export type PricePoint = {
+    time: string;
+    price: number;
+};
 
 export type SentimentResult = {
     title: string;
@@ -11,35 +28,57 @@ export type SentimentResult = {
     };
 };
 
+export type TrendingArticle = SentimentResult & {
+    affected_stocks: string[];
+};
+
+export type StockSuggestion = {
+    symbol: string;
+    name: string;
+};
+
+/** The parsed JSON response, or null if the request failed for any reason. */
+export async function getJson<T>(path: string): Promise<T | null> {
+    try {
+        const res = await fetch(`${API_URL}${path}`, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+        if (!res.ok) return null;
+        return (await res.json()) as T;
+    } catch {
+        // Network error, timeout, or a response that isn't JSON (e.g. an HTML error page)
+        return null;
+    }
+}
+
+/** Like getJson for endpoints that return a list: null unless the response really is a list. */
+async function getList<T>(path: string): Promise<T[] | null> {
+    const data = await getJson<unknown>(path);
+    return Array.isArray(data) ? (data as T[]) : null;
+}
+
+/** Latest price and today's change, or null if it couldn't be loaded. */
+export async function fetchPrice(stock: string = "TSLA"): Promise<StockPrice | null> {
+    const data = await getJson<StockPrice>(`/price?stock=${encodeURIComponent(stock)}`);
+    return data && typeof data.price === "number" ? data : null;
+}
+
+export async function fetchPriceHistory(stock: string = "TSLA", range: "daily" | "intraday" = "daily"): Promise<PricePoint[]> {
+    return (await getList<PricePoint>(`/price_history?stock=${encodeURIComponent(stock)}&range=${range}`)) ?? [];
+}
+
 export async function fetchSentiment(stock: string = "TSLA"): Promise<SentimentResult[]> {
-    const res = await fetch(`${API_URL}/sentiment?stock=${stock}`);
-    return res.json();
+    return (await getList<SentimentResult>(`/sentiment?stock=${encodeURIComponent(stock)}`)) ?? [];
 }
 
-export async function fetchPrice(stock: string = "TSLA") {
-    const res = await fetch(
-        `${API_URL}/price?stock=${stock}`
-    );
-    return res.json();
+export async function fetchPrediction(stock: string = "TSLA"): Promise<PricePoint[]> {
+    return (await getList<PricePoint>(`/predict?stock=${encodeURIComponent(stock)}`)) ?? [];
 }
 
-export async function fetchPriceHistory(stock: string = "TSLA", range: 'daily' | 'intraday' = 'daily') {
-    const res = await fetch(
-        `${API_URL}/price_history?stock=${stock}&range=${range}`
-    );
-    return res.json();
-}
-
-export async function searchStocks(query: string): Promise<{symbol: string; name: string}[]> {
+export async function searchStocks(query: string): Promise<StockSuggestion[]> {
     if (!query) return [];
-    const res = await fetch(`${API_URL}/search_stock?q=${encodeURIComponent(query)}`);
-    if (!res.ok) return [];
-    return res.json();
+    return (await getList<StockSuggestion>(`/search_stock?q=${encodeURIComponent(query)}`)) ?? [];
 }
 
-export async function fetchPrediction(stock: string = "TSLA") {
-    const res = await fetch(`${API_URL}/predict?stock=${stock}`);
-    if (!res.ok) return [];
-    return res.json();
+/** Trending headlines, or null if they couldn't be loaded (so the page can say so). */
+export async function fetchTrendingNews(): Promise<TrendingArticle[] | null> {
+    return getList<TrendingArticle>("/trending_news");
 }
-

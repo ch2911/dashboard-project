@@ -10,6 +10,15 @@ function jsonResponse(body: unknown, status = 200) {
     return new Response(JSON.stringify(body), { status });
 }
 
+function htmlResponse(status: number) {
+    return new Response("<!doctype html><title>Internal Server Error</title>", { status });
+}
+
+// The URL of the nth fetch call
+function requestedUrl(call = 0) {
+    return fetchMock.mock.calls[call][0];
+}
+
 // api.ts reads NEXT_PUBLIC_API_URL when it is first imported, so import a fresh copy each time
 async function loadApi() {
     vi.resetModules();
@@ -47,7 +56,7 @@ describe("API_URL", () => {
     });
 });
 
-describe("request helpers", () => {
+describe("successful requests", () => {
     it("fetchPrice requests the price for the ticker", async () => {
         process.env.NEXT_PUBLIC_API_URL = "https://api.example.com";
         const { fetchPrice } = await loadApi();
@@ -55,17 +64,36 @@ describe("request helpers", () => {
 
         const price = await fetchPrice("AAPL");
 
-        expect(fetchMock).toHaveBeenCalledWith("https://api.example.com/price?stock=AAPL");
+        expect(requestedUrl()).toBe("https://api.example.com/price?stock=AAPL");
         expect(price).toEqual({ ticker: "AAPL", price: 101.5, change: 0.4 });
+    });
+
+    it("gives every request a timeout so a hung server can't stall the page forever", async () => {
+        const { fetchPrice } = await loadApi();
+        fetchMock.mockResolvedValue(jsonResponse({ ticker: "AAPL", price: 1, change: 0 }));
+
+        await fetchPrice("AAPL");
+
+        expect(fetchMock.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
     });
 
     it("fetchPriceHistory passes the chosen range", async () => {
         const { fetchPriceHistory } = await loadApi();
-        fetchMock.mockResolvedValue(jsonResponse([]));
+        fetchMock.mockResolvedValue(jsonResponse([{ time: "2026-10-13T00:00:00Z", price: 1 }]));
 
-        await fetchPriceHistory("TSLA", "intraday");
+        const history = await fetchPriceHistory("TSLA", "intraday");
 
-        expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:5000/price_history?stock=TSLA&range=intraday");
+        expect(requestedUrl()).toBe("http://127.0.0.1:5000/price_history?stock=TSLA&range=intraday");
+        expect(history).toHaveLength(1);
+    });
+
+    it("encodes tickers with special characters", async () => {
+        const { fetchPrice } = await loadApi();
+        fetchMock.mockResolvedValue(jsonResponse({ ticker: "RR.L", price: 1, change: 0 }));
+
+        await fetchPrice("BRK.B&x");
+
+        expect(requestedUrl()).toBe("http://127.0.0.1:5000/price?stock=BRK.B%26x");
     });
 
     it("fetchSentiment returns the scored headlines", async () => {
@@ -76,7 +104,7 @@ describe("request helpers", () => {
         fetchMock.mockResolvedValue(jsonResponse(headlines));
 
         expect(await fetchSentiment("NVDA")).toEqual(headlines);
-        expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:5000/sentiment?stock=NVDA");
+        expect(requestedUrl()).toBe("http://127.0.0.1:5000/sentiment?stock=NVDA");
     });
 
     it("searchStocks skips the request for an empty query", async () => {
@@ -92,21 +120,59 @@ describe("request helpers", () => {
 
         const results = await searchStocks("S&P 500");
 
-        expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:5000/search_stock?q=S%26P%20500");
+        expect(requestedUrl()).toBe("http://127.0.0.1:5000/search_stock?q=S%26P%20500");
         expect(results).toEqual([{ symbol: "SPY", name: "SPDR S&P 500 ETF" }]);
     });
 
-    it("searchStocks returns no results when the API errors", async () => {
-        const { searchStocks } = await loadApi();
-        fetchMock.mockResolvedValue(jsonResponse([], 500));
+    it("fetchTrendingNews returns the headlines", async () => {
+        const { fetchTrendingNews } = await loadApi();
+        fetchMock.mockResolvedValue(jsonResponse([]));
 
-        expect(await searchStocks("apple")).toEqual([]);
+        expect(await fetchTrendingNews()).toEqual([]);
+        expect(requestedUrl()).toBe("http://127.0.0.1:5000/trending_news");
+    });
+});
+
+describe("failed requests return a fallback instead of throwing", () => {
+    // Each case: what went wrong, and how fetch behaves
+    const failures: [string, () => void][] = [
+        ["a JSON error response", () => fetchMock.mockResolvedValue(jsonResponse({ error: "failed" }, 500))],
+        ["an HTML error page", () => fetchMock.mockResolvedValue(htmlResponse(502))],
+        ["a network error (e.g. CORS)", () => fetchMock.mockRejectedValue(new TypeError("Failed to fetch"))],
+        ["a timeout", () => fetchMock.mockRejectedValue(new DOMException("The operation timed out.", "TimeoutError"))],
+        ["a response that isn't JSON", () => fetchMock.mockResolvedValue(new Response("not json", { status: 200 }))],
+    ];
+
+    it.each(failures)("fetchPrice gives null after %s", async (_, fail) => {
+        const { fetchPrice } = await loadApi();
+        fail();
+        expect(await fetchPrice("AAPL")).toBeNull();
     });
 
-    it("fetchPrediction returns no forecast when the API errors", async () => {
-        const { fetchPrediction } = await loadApi();
-        fetchMock.mockResolvedValue(jsonResponse({ error: "failed" }, 500));
+    it.each(failures)("list helpers give an empty list after %s", async (_, fail) => {
+        const api = await loadApi();
+        fail();
+        expect(await api.fetchPriceHistory("AAPL")).toEqual([]);
+        expect(await api.fetchPrediction("AAPL")).toEqual([]);
+        expect(await api.fetchSentiment("AAPL")).toEqual([]);
+        expect(await api.searchStocks("apple")).toEqual([]);
+    });
 
+    it.each(failures)("fetchTrendingNews gives null after %s", async (_, fail) => {
+        const { fetchTrendingNews } = await loadApi();
+        fail();
+        expect(await fetchTrendingNews()).toBeNull();
+    });
+
+    it("list helpers reject a response that isn't a list", async () => {
+        const { fetchPrediction } = await loadApi();
+        fetchMock.mockResolvedValue(jsonResponse({ unexpected: "shape" }));
         expect(await fetchPrediction("AAPL")).toEqual([]);
+    });
+
+    it("fetchPrice rejects a response without a price", async () => {
+        const { fetchPrice } = await loadApi();
+        fetchMock.mockResolvedValue(jsonResponse({ error: "No data" }));
+        expect(await fetchPrice("AAPL")).toBeNull();
     });
 });

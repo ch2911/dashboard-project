@@ -6,9 +6,12 @@ import {
     fetchPrice,
     fetchPriceHistory,
     fetchPrediction,
+    type PricePoint,
     type SentimentResult,
+    type StockPrice,
 } from "../../../../../utils/api";
 import { usePinnedStocks } from "../../../../../hooks/usePinnedStocks";
+import SlowServerNotice from "../../../../../components/SlowServerNotice";
 
 import {
     LineChart,
@@ -19,19 +22,6 @@ import {
     ResponsiveContainer,
     Legend,
 } from "recharts";
-import {underline} from "next/dist/lib/picocolors";
-
-
-type StockPrice = {
-    ticker: string;
-    price: number;
-    change: number;
-};
-
-type PricePoint = {
-    time: string;
-    price: number;
-};
 
 type ChartDataPoint = {
     name: string;
@@ -39,6 +29,7 @@ type ChartDataPoint = {
     prediction?: number;
 };
 
+const sectionClass = "bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-md mb-6";
 
 export default function StockPageClient({ ticker }: { ticker: string }) {
     const { pinned, pinStock, unpinStock } = usePinnedStocks();
@@ -46,47 +37,39 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
 
     const [timeRange, setTimeRange] = useState<'daily' | 'intraday'>('daily');
 
-    const [price, setPrice] = useState<StockPrice | null>(null);
-    const [history, setHistory] = useState<PricePoint[]>([]);
-    const [sentiment, setSentiment] = useState<SentimentResult[]>([]);
-    const [prediction, setPrediction] = useState<PricePoint[]>([]);
-    const [loading, setLoading] = useState(true);
+    // Each value is undefined while loading. Once loaded, null or [] means it couldn't be fetched.
+    const [price, setPrice] = useState<StockPrice | null | undefined>(undefined);
+    const [sentiment, setSentiment] = useState<SentimentResult[] | undefined>(undefined);
+    const [history, setHistory] = useState<PricePoint[] | undefined>(undefined);
+    const [prediction, setPrediction] = useState<PricePoint[] | undefined>(undefined);
+
+    // Price and headlines don't depend on the chart range. Every request updates its own
+    // section as soon as it finishes, so a slow or failed one doesn't hold up the others.
+    useEffect(() => {
+        let cancelled = false;
+        setPrice(undefined);
+        setSentiment(undefined);
+        fetchPrice(ticker).then((p) => { if (!cancelled) setPrice(p); });
+        fetchSentiment(ticker).then((s) => { if (!cancelled) setSentiment(s); });
+        return () => { cancelled = true; };
+    }, [ticker]);
 
     useEffect(() => {
-        if (!ticker) return;
-
-        setLoading(true);
-        const fetchAllData = async () => {
-            // Fetch common data
-            const [priceData, sentimentData] = await Promise.all([
-                fetchPrice(ticker),
-                fetchSentiment(ticker),
-            ]);
-            setPrice(priceData);
-            setSentiment(sentimentData);
-
-            if (timeRange === 'daily') {
-                // For daily view, fetch history AND predictions
-                const [historyData, predictionData] = await Promise.all([
-                    fetchPriceHistory(ticker, 'daily'),
-                    fetchPrediction(ticker),
-                ]);
-                setHistory(historyData);
-                setPrediction(predictionData);
-            } else {
-                // For intraday view, fetch only history and clear predictions
-                const historyData = await fetchPriceHistory(ticker, 'intraday');
-                setHistory(historyData);
-                setPrediction([]); // Clear predictions
-            }
-            setLoading(false);
-        };
-
-        fetchAllData();
+        let cancelled = false;
+        setHistory(undefined);
+        setPrediction(undefined);
+        fetchPriceHistory(ticker, timeRange).then((h) => { if (!cancelled) setHistory(h); });
+        // The forecast is only shown on the 3-month view
+        if (timeRange === 'daily') {
+            fetchPrediction(ticker).then((p) => { if (!cancelled) setPrediction(p); });
+        } else {
+            setPrediction([]);
+        }
+        return () => { cancelled = true; };
     }, [ticker, timeRange]);
 
     const combinedChartData = (() => {
-        if (!history.length) return [];
+        if (!history?.length) return [];
 
         const historicalPoints: ChartDataPoint[] = history.map((pt) => {
             const d = new Date(pt.time);
@@ -98,8 +81,9 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
             return { name: timeLabel, price: pt.price };
         });
 
-        if (!prediction.length) return historicalPoints;
+        if (!prediction?.length) return historicalPoints;
 
+        // Start the forecast line from the last real price so the two lines join up
         const lastHistoryPoint = historicalPoints[historicalPoints.length - 1];
         lastHistoryPoint.prediction = lastHistoryPoint.price;
 
@@ -114,10 +98,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
         return [...historicalPoints, ...predictionPoints];
     })();
 
-
-    if (loading) {
-        return <div className="text-center p-10">Loading stock data...</div>
-    }
+    const stillLoading = price === undefined || sentiment === undefined || history === undefined;
 
     return (
         <div className="p-6">
@@ -134,34 +115,31 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                 )}
             </div>
 
+            <SlowServerNotice active={stillLoading} />
+
             {/* Stock Info */}
-            <section className="bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-md mb-6">
+            <section className={sectionClass}>
                 <h2 className="text-xl font-semibold mb-3">Stock Overview</h2>
-                {price ? (
+                {price === undefined && <p className="text-sky-200">Loading price...</p>}
+                {price === null && <p className="text-sky-200">The price isn&apos;t available right now.</p>}
+                {price && (
                     <div>
                         <p className="text-sky-200">Company: {ticker}</p>
                         <p>
                             Price:{" "}
-                            <span className="font-bold text-white">${price.price}</span>{" "}
-                            <span
-                                className={`ml-2 font-bold ${
-                                    price.change > 0 ? "text-green-400" : "text-red-400"
-                                }`}
-                            >
-                {price.change}% today
-              </span>
+                            <span className="font-bold text-white">${price.price.toFixed(2)}</span>{" "}
+                            <span className={`ml-2 font-bold ${price.change >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                {price.change >= 0 ? "+" : ""}{price.change.toFixed(2)}% today
+                            </span>
                         </p>
                     </div>
-                ) : (
-                    <p className="text-sky-200">Loading price...</p>
                 )}
             </section>
 
             {/* Price Chart */}
-            <section className="bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-md mb-6">
+            <section className={sectionClass}>
                 <div className="flex justify-between items-center mb-3">
                     <h2 className="text-xl font-semibold">Price Chart</h2>
-                    {/* 4. ADD THE UI BUTTONS TO TOGGLE THE VIEW */}
                     <div className="flex gap-2">
                         <button
                             onClick={() => setTimeRange('daily')}
@@ -177,26 +155,47 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                         </button>
                     </div>
                 </div>
-                <div className="w-full h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={combinedChartData}>
-                            <XAxis dataKey="name" stroke="#bae6fd" />
-                            <YAxis stroke="#bae6fd" domain={['dataMin - 1', 'dataMax + 1']} />
-                            <Tooltip />
-                            <Legend />
-                            <Line name="Historical Price" type="monotone" dataKey="price" stroke="#38bdf8" strokeWidth={2} dot={false} connectNulls />
-                            {/* The prediction line will only render when it has data */}
-                            <Line name="Predicted Price" type="monotone" dataKey="prediction" stroke="#4ade80" strokeWidth={2} strokeDasharray="5 5" dot={false} connectNulls />
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
+
+                {history === undefined && <p className="text-sky-200">Loading chart...</p>}
+                {history?.length === 0 && (
+                    <p className="text-sky-200">
+                        {timeRange === 'intraday'
+                            ? "No prices for today yet. The market may not have opened."
+                            : "The price history isn't available right now."}
+                    </p>
+                )}
+                {!!history?.length && (
+                    <>
+                        <div className="w-full h-80">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={combinedChartData}>
+                                    <XAxis dataKey="name" stroke="#bae6fd" />
+                                    <YAxis stroke="#bae6fd" domain={['dataMin - 1', 'dataMax + 1']} />
+                                    <Tooltip />
+                                    <Legend />
+                                    <Line name="Historical Price" type="monotone" dataKey="price" stroke="#38bdf8" strokeWidth={2} dot={false} connectNulls />
+                                    {/* The prediction line only renders when it has data */}
+                                    <Line name="Predicted Price" type="monotone" dataKey="prediction" stroke="#4ade80" strokeWidth={2} strokeDasharray="5 5" dot={false} connectNulls />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                        {timeRange === 'daily' && prediction === undefined && (
+                            <p className="text-sm text-sky-200 mt-2">Loading the 7-day forecast...</p>
+                        )}
+                        {timeRange === 'daily' && prediction?.length === 0 && (
+                            <p className="text-sm text-sky-200 mt-2">The 7-day forecast isn&apos;t available right now.</p>
+                        )}
+                    </>
+                )}
             </section>
 
             {/* News Sentiment */}
             <section className="bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-md">
                 <h2 className="text-xl font-semibold mb-3">Live News Sentiment</h2>
+                {sentiment === undefined && <p className="text-sky-200">Loading headlines...</p>}
+                {sentiment?.length === 0 && <p className="text-sky-200">No recent headlines found.</p>}
                 <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-                    {sentiment.map((item, i) => {
+                    {sentiment?.map((item, i) => {
                         const d = new Date(item.time);
                         const prettyTime = new Intl.DateTimeFormat("en-GB", {
                             timeZone: "Europe/London",

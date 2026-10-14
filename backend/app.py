@@ -19,6 +19,7 @@ import requests
 import json
 from dotenv import load_dotenv
 from services.predictor import predict_stock_price
+from services.cache import TTLCache
 
 # This helper function finds the correct path for bundled files
 def resource_path(relative_path):
@@ -51,6 +52,42 @@ stocks_json_path = resource_path("stocks.json")
 with open(stocks_json_path, "r") as f:
     LOCAL_STOCKS = json.load(f)
 
+STOCK_NAMES = {stock["symbol"]: stock["name"] for stock in LOCAL_STOCKS}
+
+# Alpha Vantage's free plan allows 25 requests a day, and company names rarely change,
+# so search results are kept for a day.
+_search_cache = TTLCache(seconds=24 * 60 * 60)
+
+# Words to drop from company names before searching the news, e.g. "Goldman Sachs Group Inc."
+# becomes "Goldman Sachs", which is how headlines refer to it.
+_NAME_ENDINGS = re.compile(
+    r"(,?\s+(Inc\.?|Incorporated|Corporation|Corp\.?|Company|Companies|Co\.|plc|PLC|p\.l\.c\.|"
+    r"Ltd\.?|Limited|Group|Holdings?|Class [A-C]|Platforms|Technologies|Trust)|\s*&|\.com)$"
+)
+
+
+def short_company_name(name):
+    previous = None
+    while previous != name:
+        previous = name
+        name = _NAME_ENDINGS.sub("", name).strip()
+    return name
+
+
+def news_query(ticker):
+    """NewsAPI search for a stock: its ticker and/or its company name.
+
+    Very short tickers (e.g. "T", "GE") and ones with an exchange suffix (e.g. "RR.L") match too
+    many unrelated words, so only the company name is used for those.
+    """
+    terms = []
+    if len(ticker) >= 3 and "." not in ticker:
+        terms.append(ticker)
+    name = STOCK_NAMES.get(ticker)
+    if name:
+        terms.append(f'"{short_company_name(name)}"')
+    return " OR ".join(terms) or ticker
+
 def extract_symbols(text):
     """Extracts potential stock symbols from a string of text."""
     # A simple regex to find capitalized words/symbols
@@ -62,13 +99,10 @@ def extract_symbols(text):
     # Return the intersection, limited to 5
     return list(potential_symbols.intersection(known_symbols))[:5]
 
-# --- All of your @app.route functions remain exactly the same below ---
-
 @app.route("/sentiment", methods=["GET"])
 def get_sentiment():
-    # ... (no changes needed here)
     ticker = request.args.get("stock", "TSLA")
-    articles = fetch_news(ticker)
+    articles = fetch_news(news_query(ticker), search_in="title,description")
     analyzed = [
         {
             "title": a["title"],
@@ -83,7 +117,6 @@ def get_sentiment():
 
 @app.route("/search_stock", methods=["GET"])
 def search_stock():
-    # ... (no changes needed here)
     query = request.args.get("q", "").lower().strip()
     if not query:
         return jsonify([])
@@ -97,7 +130,11 @@ def search_stock():
     if matches:
         return jsonify(matches[:10])  # return up to 10 suggestions
 
-    # 2. If not found, fallback to Alpha Vantage
+    # 2. If not found, fall back to Alpha Vantage (results are cached for a day)
+    cached = _search_cache.get(query)
+    if cached is not None:
+        return jsonify(cached)
+
     url = (
         f"https://www.alphavantage.co/query?function=SYMBOL_SEARCH"
         f"&keywords={query}&apikey={ALPHAVANTAGE_KEY}"
@@ -107,18 +144,26 @@ def search_stock():
         r.raise_for_status()
         data = r.json()
     except Exception as e:
-        print("Error contacting Alpha Vantage:", e)
+        # Only the error type is logged: the message would include the URL, which contains the key
+        app.logger.warning("Couldn't reach Alpha Vantage (%s)", type(e).__name__)
         return jsonify([]), 500
 
-    av_matches = data.get("bestMatches", [])
+    if "bestMatches" not in data:
+        # Alpha Vantage explains problems (missing key, daily limit reached) in one of these fields
+        reason = data.get("Note") or data.get("Information") or data.get("Error Message") or "no reason given"
+        app.logger.warning("Alpha Vantage search for %r returned no results: %s", query, reason)
+        return jsonify([])
+
     results = []
-    for item in av_matches:
+    for item in data["bestMatches"]:
         symbol = item.get("1. symbol")
         name = item.get("2. name")
         if symbol and name:
             results.append({"symbol": symbol, "name": name})
 
-    return jsonify(results[:10])
+    results = results[:10]
+    _search_cache.set(query, results)
+    return jsonify(results)
 
 
 @app.route("/price", methods=["GET"])
@@ -195,6 +240,18 @@ def get_prediction():
     ticker = request.args.get("stock", "TSLA")
     predictions = predict_stock_price(ticker)
     return jsonify(predictions)
+
+@app.route("/health", methods=["GET"])
+def health():
+    """For uptime checks: confirms the server is running and which API keys are set (not their values)."""
+    return jsonify({
+        "status": "ok",
+        "keys": {
+            "newsapi": bool(os.getenv("NEWSAPI_KEY")),
+            "alphavantage": bool(ALPHAVANTAGE_KEY),
+        },
+    })
+
 
 if __name__ == "__main__":
     app.run(debug=True)

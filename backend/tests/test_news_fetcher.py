@@ -56,3 +56,47 @@ def test_error_response_gives_no_articles(monkeypatch):
     install_newsapi(monkeypatch, {"status": "error", "code": "apiKeyInvalid"})
 
     assert fetch_news("AAPL") == []
+
+
+def test_passes_search_in_when_given(monkeypatch):
+    seen = install_newsapi(monkeypatch, {"articles": []})
+
+    fetch_news('AAPL OR "Apple"', search_in="title,description")
+
+    assert seen["params"]["searchIn"] == "title,description"
+    assert seen["params"]["q"] == 'AAPL OR "Apple"'
+
+
+def test_results_are_reused_for_15_minutes(monkeypatch, clock):
+    requests_made = []
+
+    def fake_get(url, *args, **kwargs):
+        requests_made.append(kwargs["params"]["q"])
+        return FakeResponse({"articles": [{"title": "Headline", "url": "https://example.com", "publishedAt": "2026-10-01T09:00:00Z"}]})
+
+    monkeypatch.setattr("requests.get", fake_get)
+
+    first = fetch_news("AAPL")
+    clock.advance(14 * 60)
+    second = fetch_news("AAPL")
+    fetch_news("MSFT")  # a different search isn't served from the cache
+    clock.advance(2 * 60)
+    fetch_news("AAPL")  # 16 minutes on, AAPL is fetched again
+
+    assert second == first
+    assert requests_made == ["AAPL", "MSFT", "AAPL"]
+
+
+def test_error_responses_are_not_cached(monkeypatch):
+    requests_made = []
+
+    def fake_get(url, *args, **kwargs):
+        requests_made.append(1)
+        return FakeResponse({"status": "error", "code": "rateLimited", "message": "Too many requests"})
+
+    monkeypatch.setattr("requests.get", fake_get)
+
+    fetch_news("AAPL")
+    fetch_news("AAPL")
+
+    assert len(requests_made) == 2

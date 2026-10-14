@@ -3,19 +3,33 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { searchStocks} from "../../../utils/api";
+import { searchStocks, type StockSuggestion } from "../../../utils/api";
 import { supabase} from "../../../lib/supabaseClient";
 
-type Suggestion = { symbol: string; name: string };
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const [query, setQuery] = useState("");
-    const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+    const [suggestions, setSuggestions] = useState<StockSuggestion[]>([]);
 
     useEffect(() => {
-        if (query.length > 1) searchStocks(query).then(setSuggestions);
-        else setSuggestions([]);
+        const trimmed = query.trim();
+        if (trimmed.length < 2) {
+            setSuggestions([]);
+            return;
+        }
+        let cancelled = false;
+        // Wait until typing pauses, so every keystroke doesn't send a request (Alpha Vantage
+        // allows 25 a day), and ignore replies to searches that have since changed
+        const timer = setTimeout(() => {
+            searchStocks(trimmed).then((results) => {
+                if (!cancelled) setSuggestions(results);
+            });
+        }, 300);
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
     }, [query]);
 
     return (
@@ -43,9 +57,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
                     />
                     {suggestions.length > 0 && (
                         <ul className="absolute z-50 top-full left-0 w-full bg-white text-black rounded mt-2 shadow-lg">
-                            {suggestions.map((s, i) => (
+                            {suggestions.map((s) => (
                                 <li
-                                    key={i}
+                                    key={s.symbol}
                                     className="p-2 hover:bg-gray-200 cursor-pointer"
                                     onClick={() => {
                                         setQuery("");

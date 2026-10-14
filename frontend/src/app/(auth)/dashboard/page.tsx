@@ -3,7 +3,16 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePinnedStocks } from "../../../../hooks/usePinnedStocks";
-import { fetchPrice, fetchPriceHistory, fetchSentiment, fetchPrediction, type SentimentResult } from "../../../../utils/api";
+import {
+    fetchPrice,
+    fetchPriceHistory,
+    fetchSentiment,
+    fetchPrediction,
+    type PricePoint,
+    type SentimentResult,
+    type StockPrice,
+} from "../../../../utils/api";
+import SlowServerNotice from "../../../../components/SlowServerNotice";
 
 import {
     LineChart,
@@ -12,19 +21,7 @@ import {
     YAxis,
     Tooltip,
     ResponsiveContainer,
-    Legend,
 } from "recharts";
-
-type StockPrice = {
-    ticker: string;
-    price: number;
-    change: number;
-};
-
-type PricePoint = {
-    time: string;
-    price: number;
-};
 
 type ChartDataPoint = {
     name: string;
@@ -32,54 +29,68 @@ type ChartDataPoint = {
 };
 
 export default function Dashboard() {
-    const { pinned } = usePinnedStocks();
+    const { pinned, loading: pinnedLoading } = usePinnedStocks();
 
     const [timeRange, setTimeRange] = useState<'daily' | 'intraday'>('daily');
 
-    const [prices, setPrices] = useState<Record<string, StockPrice>>({});
+    // For each pinned ticker: missing while loading. Once loaded, null or [] means it couldn't be fetched.
+    const [prices, setPrices] = useState<Record<string, StockPrice | null>>({});
     const [histories, setHistories] = useState<Record<string, PricePoint[]>>({});
-    const [sentiments, setSentiments] = useState<(SentimentResult & { ticker: string })[]>([]);
     const [predictions, setPredictions] = useState<Record<string, PricePoint[]>>({});
+    const [sentiments, setSentiments] = useState<(SentimentResult & { ticker: string })[]>([]);
+    const [sentimentsPending, setSentimentsPending] = useState(0);
 
+    // Prices and headlines don't depend on the chart range, so they only reload when the pinned
+    // stocks change. Each stock loads on its own and appears as soon as its data arrives, so a
+    // slow or failed request for one stock doesn't hold up the rest.
     useEffect(() => {
-        if (!pinned.length) return;
+        let cancelled = false;
+        setPrices({});
+        setSentiments([]);
+        setSentimentsPending(pinned.length);
 
-        const loadData = async () => {
-            const priceResults: Record<string, StockPrice> = {};
-            const historyResults: Record<string, PricePoint[]> = {};
-            const predictionResults: Record<string, PricePoint[]> = {};
-            let sentimentResults: (SentimentResult & { ticker: string })[] = [];
+        pinned.forEach((ticker) => {
+            fetchPrice(ticker).then((price) => {
+                if (!cancelled) setPrices((prev) => ({ ...prev, [ticker]: price }));
+            });
+            fetchSentiment(ticker).then((items) => {
+                if (cancelled) return;
+                setSentiments((prev) => {
+                    const merged = [...prev, ...items.map((item) => ({ ...item, ticker }))];
+                    const unique = new Map(merged.map((s) => [`${s.ticker}-${s.time}-${s.title}`, s]));
+                    return Array.from(unique.values());
+                });
+                setSentimentsPending((n) => n - 1);
+            });
+        });
 
-            for (const ticker of pinned) {
-                const [p, s] = await Promise.all([
-                    fetchPrice(ticker),
-                    fetchSentiment(ticker),
-                ]);
-                priceResults[ticker] = p;
-                sentimentResults = [...sentimentResults, ...s.map((item) => ({ ...item, ticker }))];
+        return () => { cancelled = true; };
+    }, [pinned]);
 
-                if (timeRange === 'daily') {
-                    const [h, pred] = await Promise.all([
-                        fetchPriceHistory(ticker, 'daily'),
-                        fetchPrediction(ticker),
-                    ]);
-                    historyResults[ticker] = h;
-                    predictionResults[ticker] = pred;
-                } else {
-                    historyResults[ticker] = await fetchPriceHistory(ticker, 'intraday');
-                    predictionResults[ticker] = [];
-                }
+    // The chart reloads when the pinned stocks or the range change
+    useEffect(() => {
+        let cancelled = false;
+        setHistories({});
+        setPredictions({});
+
+        pinned.forEach((ticker) => {
+            fetchPriceHistory(ticker, timeRange).then((history) => {
+                if (!cancelled) setHistories((prev) => ({ ...prev, [ticker]: history }));
+            });
+            // The forecast is only shown on the 3-month view
+            if (timeRange === 'daily') {
+                fetchPrediction(ticker).then((prediction) => {
+                    if (!cancelled) setPredictions((prev) => ({ ...prev, [ticker]: prediction }));
+                });
             }
+        });
 
-            const unique = new Map(sentimentResults.map((s) => [`${s.ticker}-${s.time}-${s.title}`, s]));
-            setPrices(priceResults);
-            setHistories(historyResults);
-            setPredictions(predictionResults);
-            setSentiments(Array.from(unique.values()));
-        };
-
-        loadData();
+        return () => { cancelled = true; };
     }, [pinned, timeRange]);
+
+    const chartLoading = pinned.some((ticker) => !(ticker in histories));
+    const chartMissing = pinned.filter((ticker) => histories[ticker]?.length === 0);
+    const stillLoading = chartLoading || pinned.some((ticker) => !(ticker in prices)) || sentimentsPending > 0;
 
     const chartData = (() => {
         if (!pinned.length || !Object.keys(histories).length) return [];
@@ -135,6 +146,7 @@ export default function Dashboard() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-sky-900 via-sky-700 to-sky-500 text-white p-6">
             <h1 className="text-3xl font-bold mb-6">📊 My Pinned Stocks</h1>
+            <SlowServerNotice active={stillLoading} />
 
             <section className="bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-md mb-6">
                 {/* Wrap the title and buttons in a flex container */}
@@ -192,10 +204,21 @@ export default function Dashboard() {
                         </LineChart>
                     </ResponsiveContainer>
                 </div>
+                {chartLoading && <p className="text-sm text-sky-200 mt-2">Loading chart...</p>}
+                {chartMissing.length > 0 && (
+                    <p className="text-sm text-sky-200 mt-2">
+                        {timeRange === 'intraday'
+                            ? `No prices for today yet for ${chartMissing.join(", ")}. The market may not have opened.`
+                            : `Price history isn't available right now for ${chartMissing.join(", ")}.`}
+                    </p>
+                )}
             </section>
 
             <section className="bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-md mb-6">
                 <h2 className="text-xl font-semibold mb-3">Your Favorites</h2>
+                {!pinnedLoading && pinned.length === 0 && (
+                    <p className="text-sky-200">You haven&apos;t pinned any stocks yet. Search for one above and press Pin.</p>
+                )}
                 <ul className="space-y-3">
                     {pinned.map((ticker) => {
                         const stock = prices[ticker];
@@ -209,12 +232,12 @@ export default function Dashboard() {
                                     {stock ? (
                                         <span>
                                             ${stock.price.toFixed(2)}{" "}
-                                            <span className={`ml-2 font-bold ${ stock.change > 0 ? "text-green-400" : "text-red-400" }`}>
-                                                {stock.change.toFixed(2)}%
+                                            <span className={`ml-2 font-bold ${ stock.change >= 0 ? "text-green-400" : "text-red-400" }`}>
+                                                {stock.change >= 0 ? "+" : ""}{stock.change.toFixed(2)}%
                                             </span>
                                         </span>
                                     ) : (
-                                        <span className="text-sky-200">Loading...</span>
+                                        <span className="text-sky-200">{stock === null ? "Unavailable" : "Loading..."}</span>
                                     )}
                                 </Link>
                             </li>
@@ -225,8 +248,12 @@ export default function Dashboard() {
 
             <section className="bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-md">
                 <h2 className="text-xl font-semibold mb-3">News Sentiment</h2>
+                {sentiments.length === 0 && sentimentsPending > 0 && <p className="text-sky-200">Loading headlines...</p>}
+                {sentiments.length === 0 && sentimentsPending === 0 && pinned.length > 0 && (
+                    <p className="text-sky-200">No recent headlines found for your pinned stocks.</p>
+                )}
                 <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-                    {sentiments
+                    {[...sentiments]
                         .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
                         .map((item, i) => {
                             const d = new Date(item.time);

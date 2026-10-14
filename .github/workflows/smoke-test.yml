@@ -1,0 +1,30 @@
+name: Smoke test
+
+# Checks the live website and API every morning. It can also be run by hand from the Actions tab,
+# e.g. once Render has finished deploying. It fails if any endpoint errors, returns the wrong kind
+# of data or answers too slowly, and GitHub emails you when a scheduled run fails.
+
+on:
+  schedule:
+    - cron: "17 7 * * *"  # 07:17 UTC every day
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    name: Check the live site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Run the smoke test
+        env:
+          API_URL: ${{ vars.API_URL }}
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: python scripts/smoke_test.py "$API_URL" "$SITE_URL"

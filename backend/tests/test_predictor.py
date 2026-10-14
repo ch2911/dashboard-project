@@ -51,26 +51,22 @@ def test_model_error_gives_empty_forecast(fake_yfinance, monkeypatch):
     assert predict_stock_price("AAPL") == []
 
 
-def test_forecast_is_reused_within_the_hour(fake_yfinance, monkeypatch):
+def test_forecast_is_reused_within_the_hour(fake_yfinance, clock):
     calls = fake_yfinance(make_prices())
-    clock = [1000.0]
-    monkeypatch.setattr(predictor.time, "monotonic", lambda: clock[0])
 
     first = predict_stock_price("AAPL")
-    clock[0] += 30 * 60
+    clock.advance(30 * 60)
     second = predict_stock_price("aapl")  # same stock, different case
 
     assert second == first
     assert len(calls) == 1
 
 
-def test_forecast_is_refreshed_after_an_hour(fake_yfinance, monkeypatch):
+def test_forecast_is_refreshed_after_an_hour(fake_yfinance, clock):
     calls = fake_yfinance(make_prices())
-    clock = [1000.0]
-    monkeypatch.setattr(predictor.time, "monotonic", lambda: clock[0])
 
     predict_stock_price("AAPL")
-    clock[0] += 61 * 60
+    clock.advance(61 * 60)
     predict_stock_price("AAPL")
 
     assert len(calls) == 2

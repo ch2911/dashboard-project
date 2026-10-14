@@ -7,7 +7,7 @@ BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BACKEND_DIR)
 
 import app as app_module  # noqa: E402
-from services import predictor  # noqa: E402
+from services import cache  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -22,11 +22,26 @@ def block_real_apis(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def empty_forecast_cache():
-    """Start every test without cached forecasts from earlier tests."""
-    predictor.clear_cache()
+def empty_caches():
+    """Start every test without cached forecasts, news or searches from earlier tests."""
+    cache.clear_all()
     yield
-    predictor.clear_cache()
+    cache.clear_all()
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    """A clock the caches read, which tests move forward with clock.advance(seconds)."""
+
+    class Clock:
+        now = 1000.0
+
+        def advance(self, seconds):
+            self.now += seconds
+
+    fake = Clock()
+    monkeypatch.setattr(cache.time, "monotonic", lambda: fake.now)
+    return fake
 
 
 @pytest.fixture

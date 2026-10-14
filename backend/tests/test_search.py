@@ -1,5 +1,8 @@
+import logging
+
 import requests
 
+import app as app_module
 from fakes import FakeResponse
 
 
@@ -56,3 +59,52 @@ def test_alpha_vantage_failure_returns_500(client, monkeypatch):
 
     assert response.status_code == 500
     assert response.get_json() == []
+
+
+def test_alpha_vantage_results_are_cached(client, monkeypatch):
+    requests_made = []
+
+    def fake_get(url, timeout):
+        requests_made.append(url)
+        return FakeResponse({"bestMatches": [{"1. symbol": "ASML", "2. name": "ASML Holding NV"}]})
+
+    monkeypatch.setattr("requests.get", fake_get)
+
+    client.get("/search_stock?q=asml")
+    results = client.get("/search_stock?q=ASML").get_json()  # same search, different case
+
+    assert results == [{"symbol": "ASML", "name": "ASML Holding NV"}]
+    assert len(requests_made) == 1
+
+
+def test_alpha_vantage_limit_message_is_logged_and_not_cached(client, monkeypatch, caplog):
+    requests_made = []
+
+    def fake_get(url, timeout):
+        requests_made.append(url)
+        return FakeResponse({"Information": "You have reached the 25 requests per day limit."})
+
+    monkeypatch.setattr("requests.get", fake_get)
+
+    with caplog.at_level(logging.WARNING):
+        first = client.get("/search_stock?q=asml").get_json()
+        client.get("/search_stock?q=asml")
+
+    assert first == []
+    assert "25 requests per day" in caplog.text
+    assert len(requests_made) == 2
+
+
+def test_connection_errors_do_not_log_the_api_key(client, monkeypatch, caplog):
+    monkeypatch.setattr(app_module, "ALPHAVANTAGE_KEY", "secret-key-123")
+
+    def failing_get(url, timeout):
+        raise requests.ConnectionError(f"Max retries exceeded with url: {url}")
+
+    monkeypatch.setattr("requests.get", failing_get)
+
+    with caplog.at_level(logging.WARNING):
+        client.get("/search_stock?q=asml")
+
+    assert "ConnectionError" in caplog.text
+    assert "secret-key-123" not in caplog.text

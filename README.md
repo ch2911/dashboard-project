@@ -15,7 +15,7 @@ Built with Next.js (TypeScript) and a Python Flask API.
 - **Live prices**: the latest price for each stock, from Yahoo Finance via `yfinance`.
 - **Price charts**: switch between a 3-month daily view and today's prices in 5-minute steps, drawn with Recharts.
 - **Price forecast**: a 7-day forecast from an ARIMA(10,1,0) model fitted to six months of daily closing prices (`statsmodels`), shown on the 3-month view.
-- **News sentiment**: the latest headlines for each stock from NewsAPI, each scored positive, neutral or negative with VADER.
+- **News sentiment**: the latest headlines mentioning each stock's ticker or company name, from NewsAPI, each scored positive, neutral or negative with VADER.
 - **Trending news**: a general financial news feed that tags which stocks each headline mentions.
 - **Search**: searches a built-in list of 69 popular stocks first, then falls back to Alpha Vantage's symbol search.
 - **Accounts and pinned stocks**: email and password sign-in with Supabase. Pinned stocks appear together on your dashboard, and row-level security means each user can only read and change their own.
@@ -46,6 +46,7 @@ dashboard-project/
 │   ├── app.py               # Flask API with all the endpoints
 │   ├── gunicorn.conf.py     # server settings used on Render (threads, timeout)
 │   ├── services/
+│   │   ├── cache.py         # short-lived caches for forecasts, news and searches
 │   │   ├── news_fetcher.py  # headlines from NewsAPI
 │   │   ├── predictor.py     # ARIMA price forecast
 │   │   └── sentiment.py     # VADER sentiment scores
@@ -57,7 +58,10 @@ dashboard-project/
 │   ├── src/app/             # pages: login, dashboard, news, stocks/[ticker]
 │   ├── components/  hooks/  lib/  utils/
 │   └── package.json
-├── .github/workflows/ci.yml # tests, then deploys to GitHub Pages
+├── .github/workflows/
+│   ├── ci.yml               # tests, then deploys to GitHub Pages
+│   └── smoke-test.yml       # checks the live site every morning
+├── scripts/smoke_test.py    # the checks the smoke test runs
 ├── main.js                  # optional Electron desktop wrapper
 └── .env.example
 ```
@@ -119,6 +123,7 @@ Open http://localhost:3000, sign up with an email and password, click the link i
 | `GET /sentiment?stock=AAPL` | Latest headlines about the stock, with sentiment scores |
 | `GET /trending_news` | General financial headlines, with sentiment and the stocks they mention |
 | `GET /search_stock?q=apple` | Up to 10 matching stocks |
+| `GET /health` | Whether the server is up and which API keys are set (not their values) |
 
 ## Using your own Supabase project (optional)
 
@@ -157,11 +162,19 @@ pip install -r requirements-dev.txt
 pytest --cov=app --cov=services
 ```
 
-The frontend tests check the helpers that call the API:
+The frontend tests check the helpers that call the API, including what happens when a request fails or times out:
 
 ```bash
 cd frontend
 npm test
+```
+
+### Smoke test
+
+`scripts/smoke_test.py` checks the live site: it wakes the API, then calls every endpoint and fails if any of them errors, returns the wrong kind of data or takes longer than 20 seconds. It runs every morning in GitHub Actions and can be run by hand:
+
+```bash
+python scripts/smoke_test.py https://your-api.onrender.com
 ```
 
 ## Deployment
@@ -171,6 +184,8 @@ Every push and pull request runs the GitHub Actions workflow in `.github/workflo
 1. **Backend tests:** the pytest suite, with a coverage report.
 2. **Frontend tests and build:** the Vitest tests, then `next build`, which also lints and type-checks the code.
 3. **Deploy:** on `main`, once both jobs pass, the static site is published to GitHub Pages. Render's auto-deploy waits for the same checks, so the API only updates when the tests pass.
+
+A second workflow, `.github/workflows/smoke-test.yml`, runs the smoke test against the live site every morning. It can also be started from the Actions tab after a deploy.
 
 | Service | Setup |
 | --- | --- |
@@ -185,4 +200,5 @@ Every push and pull request runs the GitHub Actions workflow in `.github/workflo
 ## Notes
 
 - The forecast is a simple statistical model built for learning and demonstration. It isn't financial advice.
-- Yahoo Finance data comes from an unofficial API, and the free NewsAPI and Alpha Vantage plans limit daily requests, so the occasional request can fail.
+- Yahoo Finance data comes from an unofficial API, and the free NewsAPI and Alpha Vantage plans limit daily requests, so the occasional request can fail. To stay within the limits, the API reuses forecasts for an hour, headlines for 15 minutes and Alpha Vantage search results for a day.
+- If a request fails, that part of the page says the data isn't available rather than loading forever.

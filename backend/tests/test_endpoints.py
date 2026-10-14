@@ -81,15 +81,15 @@ def test_sentiment_scores_each_headline(client, monkeypatch):
         {"title": "Shares crash after terrible results", "time": "2026-10-01T10:00:00Z", "url": "https://example.com/2"},
     ]
 
-    def fake_fetch_news(query):
-        searched.append(query)
+    def fake_fetch_news(query, search_in=None):
+        searched.append((query, search_in))
         return articles
 
     monkeypatch.setattr(app_module, "fetch_news", fake_fetch_news)
 
     data = client.get("/sentiment?stock=NVDA").get_json()
 
-    assert searched == ["NVDA"]
+    assert searched == [('NVDA OR "NVIDIA"', "title,description")]
     assert [item["sentiment"]["label"] for item in data] == ["positive", "negative"]
     assert data[0]["url"] == "https://example.com/1"
 
@@ -103,7 +103,7 @@ def test_trending_news_tags_the_stocks_each_headline_mentions(client, monkeypatc
         {"title": "Markets close flat", "time": "2026-10-01T10:00:00Z", "url": "https://example.com/2"},
     ]
 
-    def fake_fetch_news(query):
+    def fake_fetch_news(query, search_in=None):
         searched.append(query)
         return articles
 
@@ -131,7 +131,7 @@ def test_predict_returns_the_forecast(client, monkeypatch):
 # Errors
 
 def test_unexpected_error_returns_json_with_cors_header(client, monkeypatch):
-    def broken_fetch_news(query):
+    def broken_fetch_news(query, search_in=None):
         raise RuntimeError("NewsAPI is down")
 
     monkeypatch.setattr(app_module, "fetch_news", broken_fetch_news)
@@ -147,3 +147,14 @@ def test_unknown_route_returns_json_404(client):
     response = client.get("/not-a-route")
     assert response.status_code == 404
     assert "error" in response.get_json()
+
+
+# /health
+
+def test_health_reports_which_keys_are_set(client, monkeypatch):
+    monkeypatch.setenv("NEWSAPI_KEY", "a-key")
+    monkeypatch.setattr(app_module, "ALPHAVANTAGE_KEY", None)
+
+    data = client.get("/health").get_json()
+
+    assert data == {"status": "ok", "keys": {"newsapi": True, "alphavantage": False}}

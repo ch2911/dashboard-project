@@ -1,14 +1,14 @@
-import time
 import warnings
 
 import pandas as pd
 import yfinance as yf
 from statsmodels.tsa.arima.model import ARIMA
 
+from services.cache import TTLCache
+
 # Forecasts only change when new prices come in, so each ticker's forecast is reused for an
 # hour. Failed forecasts aren't cached, so they're retried on the next request.
-CACHE_SECONDS = 60 * 60
-_forecast_cache = {}  # ticker -> (time it was made, forecast)
+_forecast_cache = TTLCache(seconds=60 * 60)
 
 
 def clear_cache():
@@ -18,12 +18,12 @@ def clear_cache():
 def predict_stock_price(ticker):
     key = ticker.upper()
     cached = _forecast_cache.get(key)
-    if cached and time.monotonic() - cached[0] < CACHE_SECONDS:
-        return cached[1]
+    if cached is not None:
+        return cached
 
     forecast = _make_forecast(ticker)
     if forecast:
-        _forecast_cache[key] = (time.monotonic(), forecast)
+        _forecast_cache.set(key, forecast)
     return forecast
 
 

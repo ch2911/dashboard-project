@@ -1,42 +1,36 @@
-// In frontend/src/app/(auth)/news/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_URL } from "../../../../utils/api";
-
-// Define the type for our new data structure
-type TrendingArticle = {
-    title: string;
-    time: string;
-    url: string;
-    sentiment: { label: string; score: number };
-    affected_stocks: string[];
-};
+import { fetchTrendingNews, type TrendingArticle } from "../../../../utils/api";
+import SlowServerNotice from "../../../../components/SlowServerNotice";
 
 export default function NewsPage() {
-    const [articles, setArticles] = useState<TrendingArticle[]>([]);
-    const [loading, setLoading] = useState(true);
+    // undefined while loading, null if the news couldn't be loaded
+    const [articles, setArticles] = useState<TrendingArticle[] | null | undefined>(undefined);
 
     useEffect(() => {
-        async function loadNews() {
-            setLoading(true);
-            const res = await fetch(`${API_URL}/trending_news`);
-            const data = await res.json();
-            setArticles(data);
-            setLoading(false);
-        }
-        loadNews();
+        let cancelled = false;
+        fetchTrendingNews().then((data) => {
+            if (!cancelled) setArticles(data);
+        });
+        return () => {
+            cancelled = true;
+        };
     }, []);
-
-    if (loading) {
-        return <p className="text-center text-sky-200">Loading trending news...</p>;
-    }
 
     return (
         <div>
             <h1 className="text-3xl font-bold mb-6">📰 Trending Financial News</h1>
+            <SlowServerNotice active={articles === undefined} />
+
+            {articles === undefined && <p className="text-center text-sky-200">Loading trending news...</p>}
+            {articles === null && (
+                <p className="text-center text-sky-200">Couldn&apos;t load the news right now. Please try again in a minute.</p>
+            )}
+            {articles?.length === 0 && <p className="text-center text-sky-200">No trending news found right now.</p>}
+
             <section className="space-y-4">
-                {articles.map((item, i) => {
+                {articles?.map((item, i) => {
                     const d = new Date(item.time);
                     const prettyTime = new Intl.DateTimeFormat("en-GB", {
                         timeZone: "Europe/London", hour: "2-digit", minute: "2-digit",

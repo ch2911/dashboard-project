@@ -18,29 +18,31 @@ class TTLCache:
     def __init__(self, seconds, max_entries=500):
         self.seconds = seconds
         self.max_entries = max_entries
-        self._entries = {}  # key -> (time saved, value)
+        self._entries = {}  # key -> (time it expires, value)
         self._lock = threading.Lock()  # gunicorn serves requests from several threads
         _all_caches.append(self)
 
     def get(self, key):
-        """Return the saved value, or None if there isn't one from the last `seconds`."""
+        """Return the saved value, or None if there isn't one that's still fresh."""
         with self._lock:
             entry = self._entries.get(key)
             if entry is None:
                 return None
-            saved_at, value = entry
-            if time.monotonic() - saved_at >= self.seconds:
+            expires_at, value = entry
+            if time.monotonic() >= expires_at:
                 del self._entries[key]
                 return None
             return value
 
-    def set(self, key, value):
+    def set(self, key, value, seconds=None):
+        """Save a value for `seconds` (by default the cache's own lifetime)."""
+        lifetime = self.seconds if seconds is None else seconds
         with self._lock:
             if key not in self._entries and len(self._entries) >= self.max_entries:
-                # Full: drop the oldest entry to make room
-                oldest = min(self._entries, key=lambda k: self._entries[k][0])
-                del self._entries[oldest]
-            self._entries[key] = (time.monotonic(), value)
+                # Full: drop the entry that expires soonest to make room
+                soonest = min(self._entries, key=lambda k: self._entries[k][0])
+                del self._entries[soonest]
+            self._entries[key] = (time.monotonic() + lifetime, value)
 
     def clear(self):
         with self._lock:

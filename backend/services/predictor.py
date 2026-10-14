@@ -1,10 +1,10 @@
 import warnings
 
 import pandas as pd
-import yfinance as yf
 from statsmodels.tsa.arima.model import ARIMA
 
 from services.cache import TTLCache
+from services.market_data import get_history
 
 # Forecasts only change when new prices come in, so each ticker's forecast is reused for an
 # hour. Failed forecasts aren't cached, so they're retried on the next request.
@@ -30,7 +30,7 @@ def predict_stock_price(ticker):
 def _make_forecast(ticker):
     try:
         # Six months of daily closing prices
-        stock_data = yf.Ticker(ticker).history(period="6mo", interval="1d")
+        stock_data = get_history(ticker, period="6mo", interval="1d", cache_seconds=60 * 60)
         if stock_data.empty:
             return []
 

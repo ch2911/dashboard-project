@@ -14,12 +14,13 @@ from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
 from services.news_fetcher import fetch_news
 from services.sentiment import analyze_sentiment
-import yfinance as yf
 import requests
 import json
 from dotenv import load_dotenv
 from services.predictor import predict_stock_price
 from services.cache import TTLCache
+from services.market_data import get_history
+from yfinance.exceptions import YFRateLimitError
 
 # This helper function finds the correct path for bundled files
 def resource_path(relative_path):
@@ -34,6 +35,13 @@ def resource_path(relative_path):
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
+
+
+@app.errorhandler(YFRateLimitError)
+def handle_yahoo_rate_limit(error):
+    """Yahoo Finance still refused after the retries in market_data. Say so instead of a generic error."""
+    app.logger.warning("Yahoo Finance rate limit on %s", request.full_path)
+    return jsonify({"error": "Yahoo Finance is busy right now. Please try again in a minute."}), 503
 
 
 @app.errorhandler(Exception)
@@ -171,7 +179,7 @@ def get_price():
     ticker = request.args.get("stock", "TSLA")
     # Daily bars: the last one is today's (updated live during market hours) and the one
     # before it is the previous close, so "change" is the day's move, as on a stock app.
-    data = yf.Ticker(ticker).history(period="5d", interval="1d")
+    data = get_history(ticker, period="5d", interval="1d", cache_seconds=60)
     closes = data["Close"].dropna() if "Close" in data else []
     if len(closes) == 0:
         return jsonify({"error": "No data"}), 404
@@ -195,14 +203,12 @@ def price_history():
     # Get the requested time range, defaulting to 'daily'
     time_range = request.args.get("range", "daily")
 
-    stock = yf.Ticker(ticker)
-
     if time_range == 'intraday':
-        # Fetch intraday data for the last day
-        hist = stock.history(period="1d", interval="5m")
+        # Today's prices in 5-minute steps, reused for 5 minutes
+        hist = get_history(ticker, period="1d", interval="5m", cache_seconds=5 * 60)
     else:
-        # Default to daily data for the last 3 months
-        hist = stock.history(period="3mo", interval="1d")
+        # Default to daily data for the last 3 months, reused for 15 minutes
+        hist = get_history(ticker, period="3mo", interval="1d", cache_seconds=15 * 60)
 
     if hist.empty:
         return jsonify({"error": "No data"}), 404

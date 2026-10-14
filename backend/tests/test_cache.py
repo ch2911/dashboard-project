@@ -40,3 +40,14 @@ def test_clear_all_empties_every_cache():
 
     assert one.get("a") is None
     assert two.get("b") is None
+
+
+def test_an_entry_can_have_its_own_lifetime(clock):
+    store = TTLCache(seconds=60)
+    store.set("short", 1, seconds=5)
+    store.set("default", 2)
+
+    clock.advance(6)
+
+    assert store.get("short") is None
+    assert store.get("default") == 2

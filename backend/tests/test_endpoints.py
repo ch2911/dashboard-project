@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import pytest
+from yfinance.exceptions import YFRateLimitError
 
 import app as app_module
 from fakes import empty_prices, make_prices
@@ -42,6 +43,35 @@ def test_price_for_unknown_ticker_returns_404(client, fake_yfinance):
     fake_yfinance(empty_prices())
     response = client.get("/price?stock=NOPE")
     assert response.status_code == 404
+
+
+def test_price_is_reused_for_a_minute(client, fake_yfinance, clock):
+    calls = fake_yfinance(make_prices(n=5))
+
+    client.get("/price?stock=AAPL")
+    clock.advance(30)
+    client.get("/price?stock=AAPL")
+    clock.advance(31)
+    client.get("/price?stock=AAPL")
+
+    assert len(calls) == 2
+
+
+def test_price_when_yahoo_keeps_refusing_says_it_is_busy(client, monkeypatch):
+    class RateLimitedTicker:
+        def __init__(self, ticker):
+            pass
+
+        def history(self, period, interval):
+            raise YFRateLimitError()
+
+    monkeypatch.setattr("yfinance.Ticker", RateLimitedTicker)
+
+    response = client.get("/price?stock=AAPL", headers={"Origin": "https://ch2911.github.io"})
+
+    assert response.status_code == 503
+    assert "busy" in response.get_json()["error"]
+    assert "Access-Control-Allow-Origin" in response.headers
 
 
 # /price_history

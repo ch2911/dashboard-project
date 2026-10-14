@@ -46,7 +46,8 @@ dashboard-project/
 │   ├── app.py               # Flask API with all the endpoints
 │   ├── gunicorn.conf.py     # server settings used on Render (threads, timeout)
 │   ├── services/
-│   │   ├── cache.py         # short-lived caches for forecasts, news and searches
+│   │   ├── cache.py         # short-lived caches for prices, forecasts, news and searches
+│   │   ├── market_data.py   # Yahoo Finance prices, with retries
 │   │   ├── news_fetcher.py  # headlines from NewsAPI
 │   │   ├── predictor.py     # ARIMA price forecast
 │   │   └── sentiment.py     # VADER sentiment scores
@@ -200,5 +201,5 @@ A second workflow, `.github/workflows/smoke-test.yml`, runs the smoke test again
 ## Notes
 
 - The forecast is a simple statistical model built for learning and demonstration. It isn't financial advice.
-- Yahoo Finance data comes from an unofficial API, and the free NewsAPI and Alpha Vantage plans limit daily requests, so the occasional request can fail. To stay within the limits, the API reuses forecasts for an hour, headlines for 15 minutes and Alpha Vantage search results for a day.
+- Yahoo Finance data comes from an unofficial API, and the free NewsAPI and Alpha Vantage plans limit daily requests, so the occasional request can fail. To stay within the limits, the API reuses prices for between 1 and 15 minutes, forecasts for an hour, headlines for 15 minutes and Alpha Vantage search results for a day. When Yahoo Finance refuses a request ("Too Many Requests"), the API waits a few seconds and tries again.
 - If a request fails, that part of the page says the data isn't available rather than loading forever.

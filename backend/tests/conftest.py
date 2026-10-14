@@ -7,7 +7,7 @@ BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BACKEND_DIR)
 
 import app as app_module  # noqa: E402
-from services import cache  # noqa: E402
+from services import cache, market_data  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -27,6 +27,14 @@ def empty_caches():
     cache.clear_all()
     yield
     cache.clear_all()
+
+
+@pytest.fixture(autouse=True)
+def sleeps(monkeypatch):
+    """Record the pauses between retries instead of really waiting."""
+    pauses = []
+    monkeypatch.setattr(market_data.time, "sleep", lambda seconds: pauses.append(seconds))
+    return pauses
 
 
 @pytest.fixture

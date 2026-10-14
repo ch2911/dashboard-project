@@ -5,14 +5,16 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../../../../lib/supabaseClient";
 import { useAuthRedirect } from "../../../../lib/useAuthRedirect";
 import { deleteAccount } from "../../../../utils/api";
+import PriceAlertSettings from "../../../../components/PriceAlertSettings";
 import { ACCENTS, MODES, DEFAULT_THEME, loadTheme, saveTheme, type ThemeSettings } from "../../../../utils/theme";
 
-// Each part of the page is its own section, so more (e.g. email alerts) can be added alongside.
+// Each part of the page is its own section. Price alert emails link here (/settings/).
 export default function SettingsPage() {
     return (
         <div className="max-w-2xl space-y-6">
             <h1 className="text-3xl font-bold">⚙️ Settings</h1>
             <AppearanceSection />
+            <PriceAlertSettings />
             <AccountSection />
         </div>
     );

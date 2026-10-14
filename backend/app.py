@@ -19,7 +19,7 @@ import json
 from dotenv import load_dotenv
 from services.predictor import predict_stock_price
 from services.cache import TTLCache
-from services.market_data import get_history
+from services.market_data import daily_move, get_history
 from services import accounts
 from yfinance.exceptions import YFRateLimitError
 
@@ -178,19 +178,11 @@ def search_stock():
 @app.route("/price", methods=["GET"])
 def get_price():
     ticker = request.args.get("stock", "TSLA")
-    # Daily bars: the last one is today's (updated live during market hours) and the one
-    # before it is the previous close, so "change" is the day's move, as on a stock app.
     data = get_history(ticker, period="5d", interval="1d", cache_seconds=60)
-    closes = data["Close"].dropna() if "Close" in data else []
-    if len(closes) == 0:
+    move = daily_move(data)
+    if move is None:
         return jsonify({"error": "No data"}), 404
-
-    price = float(closes.iloc[-1])
-    if len(closes) > 1:
-        previous_close = float(closes.iloc[-2])
-        change = (price - previous_close) / previous_close * 100
-    else:
-        change = 0.0  # only one day of data, e.g. a new listing
+    price, change, _ = move
 
     return jsonify({
         "ticker": ticker,

@@ -3,7 +3,16 @@
 import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../lib/useAuth";
-import { MAX_THRESHOLD_PERCENT, MIN_THRESHOLD_PERCENT, parseThreshold, settingsFromRow } from "../utils/alertSettings";
+import {
+    MAX_THRESHOLD_PERCENT,
+    MIN_THRESHOLD_PERCENT,
+    alertsAvailableTo,
+    parseThreshold,
+    settingsFromRow,
+} from "../utils/alertSettings";
+
+// Set at build time in demo mode, when alert emails can only be delivered to the site owner
+const OWNER_ID = process.env.NEXT_PUBLIC_ALERT_OWNER_ID;
 
 // A self-contained section for the settings page: whether to get emails when a pinned stock
 // moves a lot in a day, and how big a move (as a % change from the previous close) counts.
@@ -13,6 +22,7 @@ export default function PriceAlertSettings() {
     const [threshold, setThreshold] = useState("");
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
+    const available = alertsAvailableTo(user?.id, OWNER_ID);
 
     useEffect(() => {
         if (!user) return;
@@ -35,7 +45,7 @@ export default function PriceAlertSettings() {
 
     const save = async (event: FormEvent) => {
         event.preventDefault();
-        if (!user) return;
+        if (!user || !available) return;
         const parsed = parseThreshold(threshold);
         if ("error" in parsed) {
             setMessage({ text: parsed.error, error: true });
@@ -58,35 +68,44 @@ export default function PriceAlertSettings() {
             <p className="text-sm text-sky-200 mb-4">
                 Get an email when one of your pinned stocks moves a lot in a day. You&apos;ll hear about each stock at most once a day.
             </p>
+            {OWNER_ID && (
+                <p className="text-sm text-amber-200 bg-amber-500/10 border border-amber-300/30 rounded-lg px-3 py-2 mb-4">
+                    {available
+                        ? "Demo mode: alert emails are only sent to you, the site owner, until a verified email domain is set up."
+                        : "Demo mode: alert emails are only sent to the site owner for now, so these settings are turned off for your account."}
+                </p>
+            )}
             {loading ? (
                 <p className="text-sm text-sky-200">Loading...</p>
             ) : (
-                <form onSubmit={save} className="space-y-3">
-                    <label className="flex items-center gap-2">
-                        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-                        Email me about big moves
-                    </label>
-                    <label className="flex flex-wrap items-center gap-2">
-                        Alert when a stock moves at least
-                        <input
-                            type="number"
-                            inputMode="decimal"
-                            step="0.5"
-                            min={MIN_THRESHOLD_PERCENT}
-                            max={MAX_THRESHOLD_PERCENT}
-                            value={threshold}
-                            disabled={!enabled}
-                            onChange={(e) => setThreshold(e.target.value)}
-                            className="w-20 px-2 py-1 rounded bg-white/10 border border-sky-300/30 disabled:opacity-50"
-                        />
-                        % in a day
-                    </label>
-                    <button type="submit" className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 transition">
-                        Save
-                    </button>
-                    {message && (
-                        <p className={`text-sm ${message.error ? "text-red-300" : "text-green-300"}`}>{message.text}</p>
-                    )}
+                <form onSubmit={save}>
+                    <fieldset disabled={!available} className="space-y-3 disabled:opacity-50">
+                        <label className="flex items-center gap-2">
+                            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+                            Email me about big moves
+                        </label>
+                        <label className="flex flex-wrap items-center gap-2">
+                            Alert when a stock moves at least
+                            <input
+                                type="number"
+                                inputMode="decimal"
+                                step="0.5"
+                                min={MIN_THRESHOLD_PERCENT}
+                                max={MAX_THRESHOLD_PERCENT}
+                                value={threshold}
+                                disabled={!enabled}
+                                onChange={(e) => setThreshold(e.target.value)}
+                                className="w-20 px-2 py-1 rounded bg-white/10 border border-sky-300/30 disabled:opacity-50"
+                            />
+                            % in a day
+                        </label>
+                        <button type="submit" className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 transition">
+                            Save
+                        </button>
+                        {message && (
+                            <p className={`text-sm ${message.error ? "text-red-300" : "text-green-300"}`}>{message.text}</p>
+                        )}
+                    </fieldset>
                 </form>
             )}
         </section>

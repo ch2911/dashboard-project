@@ -169,6 +169,17 @@ To turn it on:
    - variables `SUPABASE_URL` (e.g. `https://xxxx.supabase.co`) and `ALERT_FROM_EMAIL` (e.g. `Stock Dashboard <alerts@yourdomain.com>`, on a domain verified in Resend)
 3. Run the "Price alerts" workflow by hand from the Actions tab to check it works.
 
+### Demo mode (no email domain yet)
+
+Without a domain verified in Resend, emails can only be sent from `onboarding@resend.dev`, and Resend only delivers those to the address the Resend account was created with. So the alerts work end to end, but only for the site owner. To run like that:
+
+1. Set `ALERT_FROM_EMAIL` to `Stock Dashboard <onboarding@resend.dev>`.
+2. Add a repository variable `ALERT_OWNER_ID` set to your own Supabase user id (Supabase → Authentication → Users, the "UID" column). Your login must use the same email as your Resend account.
+
+With `ALERT_OWNER_ID` set, the alert job only emails that user, and the settings page shows a demo-mode note and turns the alert controls off for everyone else. The site picks up the variable the next time it's deployed (any push to `main`, or re-run the CI/CD workflow).
+
+To open alerts to everyone: verify a domain in Resend, change `ALERT_FROM_EMAIL` to an address on it, delete the `ALERT_OWNER_ID` variable, and re-run the CI/CD workflow so the site is rebuilt.
+
 ## Running the tests
 
 The backend tests replace Yahoo Finance, NewsAPI and Alpha Vantage with fakes, so they run without API keys or a network connection.

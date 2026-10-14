@@ -7,6 +7,7 @@ Run on a schedule by .github/workflows/price-alerts.yml. Needs these environment
     RESEND_API_KEY             from https://resend.com
     ALERT_FROM_EMAIL           e.g. "Stock Dashboard <alerts@yourdomain.com>"
     SITE_URL                   optional, linked from the email so users can change their settings
+    ALERT_OWNER_ID             optional, a Supabase user id: only email that user (demo mode)
 """
 import logging
 import os
@@ -29,7 +30,8 @@ def main():
     session = requests.Session()
     store = SupabaseStore(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"], session)
     sender = ResendSender(os.environ["RESEND_API_KEY"], os.environ["ALERT_FROM_EMAIL"], session)
-    sent = run(store, sender, market_today(), site_url=os.environ.get("SITE_URL") or None)
+    sent = run(store, sender, market_today(), site_url=os.environ.get("SITE_URL") or None,
+               owner_id=os.environ.get("ALERT_OWNER_ID") or None)
     print(f"Sent {sent} price alert email(s)")
     return 0
 

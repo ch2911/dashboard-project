@@ -8,7 +8,9 @@ Render's free server sleeps when nobody is using the site. Each run:
 3. emails each user one message listing the stocks that moved at least their threshold,
    skipping any stock they've already been alerted about today.
 
-A user without saved settings gets alerts at DEFAULT_THRESHOLD_PERCENT. Supabase is reached with
+A user without saved settings gets alerts at DEFAULT_THRESHOLD_PERCENT. When `owner_id` is given
+(demo mode, for an email provider that may only send to the site owner), only that user is
+emailed. Supabase is reached with
 the service role key, which can read every user's rows, so this only ever runs server-side.
 """
 import html
@@ -139,10 +141,12 @@ def compose_email(moves, threshold, site_url=None):
     return subject, text, html_body
 
 
-def run(store, sender, today, get_change=todays_change, site_url=None):
-    """Send today's alerts. Returns how many emails were sent."""
+def run(store, sender, today, get_change=todays_change, site_url=None, owner_id=None):
+    """Send today's alerts, only to `owner_id` if it's given. Returns how many emails were sent."""
     pinned = defaultdict(set)
     for row in store.favorites():
+        if owner_id and row["user_id"] != owner_id:
+            continue
         pinned[row["user_id"]].add(row["symbol"].upper())
 
     settings = store.settings()

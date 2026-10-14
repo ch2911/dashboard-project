@@ -139,6 +139,17 @@ def test_skips_stocks_without_a_price_today_or_whose_lookup_fails():
     assert sender.messages == []
 
 
+def test_demo_mode_only_emails_the_owner():
+    store = FakeStore([("owner", "AAPL"), ("someone", "AAPL")])
+    sender = FakeSender()
+    get_change = changes(AAPL=9.0)
+
+    assert run(store, sender, TODAY, get_change, owner_id="owner") == 1
+
+    assert [m["to"] for m in sender.messages] == ["owner@example.com"]
+    assert [user for user, _, _ in store.recorded] == ["owner"]
+
+
 def test_skips_users_without_an_email_address():
     store = FakeStore([("u1", "AAPL")], emails={"u1": None})
     sender = FakeSender()
@@ -273,8 +284,10 @@ def test_job_runs_with_keys_from_the_environment(monkeypatch):
     monkeypatch.setenv("SITE_URL", "https://example.com/settings/")
     seen = {}
 
-    def fake_run(store, sender, today, site_url=None):
-        seen.update(store=store, sender=sender, site_url=site_url)
+    monkeypatch.setenv("ALERT_OWNER_ID", "owner-uuid")
+
+    def fake_run(store, sender, today, site_url=None, owner_id=None):
+        seen.update(store=store, sender=sender, site_url=site_url, owner_id=owner_id)
         return 0
 
     monkeypatch.setattr(send_price_alerts, "run", fake_run)
@@ -283,3 +296,4 @@ def test_job_runs_with_keys_from_the_environment(monkeypatch):
     assert isinstance(seen["store"], SupabaseStore)
     assert isinstance(seen["sender"], ResendSender)
     assert seen["site_url"] == "https://example.com/settings/"
+    assert seen["owner_id"] == "owner-uuid"

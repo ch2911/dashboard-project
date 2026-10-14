@@ -65,6 +65,7 @@ jobs:
         env:
           PAGES_BASE_PATH: /${{ github.event.repository.name }}
           NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
+          NEXT_PUBLIC_ALERT_OWNER_ID: ${{ vars.ALERT_OWNER_ID }}
 
       - name: Upload site for GitHub Pages
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'

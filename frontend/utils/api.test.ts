@@ -176,3 +176,30 @@ describe("failed requests return a fallback instead of throwing", () => {
         expect(await fetchPrice("AAPL")).toBeNull();
     });
 });
+
+describe("deleteAccount", () => {
+    it("sends the user's token and reports success as null", async () => {
+        const { deleteAccount } = await loadApi();
+        fetchMock.mockResolvedValue(jsonResponse({ deleted: true }));
+
+        expect(await deleteAccount("token-abc")).toBeNull();
+        expect(requestedUrl()).toBe("http://127.0.0.1:5000/account");
+        const options = fetchMock.mock.calls[0][1];
+        expect(options.method).toBe("DELETE");
+        expect(options.headers).toEqual({ Authorization: "Bearer token-abc" });
+    });
+
+    it("passes on the server's explanation when it refuses", async () => {
+        const { deleteAccount } = await loadApi();
+        fetchMock.mockResolvedValue(jsonResponse({ error: "Please sign in again." }, 401));
+        expect(await deleteAccount("old")).toBe("Please sign in again.");
+    });
+
+    it("gives a general message for an HTML error page or a network failure", async () => {
+        const { deleteAccount } = await loadApi();
+        fetchMock.mockResolvedValueOnce(htmlResponse(502));
+        expect(await deleteAccount("t")).toMatch(/couldn't be deleted/);
+        fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+        expect(await deleteAccount("t")).toMatch(/Couldn't reach the server/);
+    });
+});

@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 from services.predictor import predict_stock_price
 from services.cache import TTLCache
 from services.market_data import get_history
+from services import accounts
 from yfinance.exceptions import YFRateLimitError
 
 # This helper function finds the correct path for bundled files
@@ -247,6 +248,29 @@ def get_prediction():
     predictions = predict_stock_price(ticker)
     return jsonify(predictions)
 
+@app.route("/account", methods=["DELETE"])
+def delete_account():
+    """Delete the signed-in user's profile: their pinned stocks and their Supabase login.
+
+    The frontend sends the user's Supabase access token, which proves who is asking. Deleting a
+    login needs Supabase's service role key, which must stay on the server.
+    """
+    if not accounts.is_configured():
+        return jsonify({"error": "Deleting profiles isn't set up on the server yet."}), 503
+
+    header = request.headers.get("Authorization", "")
+    token = header[len("Bearer "):].strip() if header.startswith("Bearer ") else ""
+    if not token:
+        return jsonify({"error": "Please sign in again."}), 401
+
+    user_id = accounts.user_id_for_token(token)
+    if user_id is None:
+        return jsonify({"error": "Please sign in again."}), 401
+
+    accounts.delete_user(user_id)
+    return jsonify({"deleted": True})
+
+
 @app.route("/health", methods=["GET"])
 def health():
     """For uptime checks: confirms the server is running and which API keys are set (not their values)."""
@@ -255,6 +279,10 @@ def health():
         "keys": {
             "newsapi": bool(os.getenv("NEWSAPI_KEY")),
             "alphavantage": bool(ALPHAVANTAGE_KEY),
+        },
+        # Optional features, reported separately so the smoke test doesn't fail without them
+        "features": {
+            "delete_profile": accounts.is_configured(),
         },
     })
 

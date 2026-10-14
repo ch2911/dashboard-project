@@ -34,7 +34,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     }, [query]);
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-sky-900 via-blue-700 to-sky-500 text-white p-6">
+        <div className="min-h-screen app-bg text-white p-6">
             {/* Header */}
             <header className="p-6 border-b border-sky-300/30 shadow-lg flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div className="flex items-center gap-6">
@@ -45,6 +45,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
                     <Link href="/news" className="text-sky-200 hover:text-white transition">
                         News
                     </Link>
+
+                    <Link href="/settings" className="text-sky-200 hover:text-white transition">
+                        Settings
+                    </Link>
                 </div>
 
                 {/* Search bar */}
@@ -52,7 +56,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
                     <input
                         type="text"
                         placeholder="Search stocks..."
-                        className="p-2 rounded text-sky-200 w-full"
+                        className="p-2 rounded bg-white text-sky-200 w-full"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                     />

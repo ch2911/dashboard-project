@@ -37,7 +37,7 @@ export default function Header() {
                 <input
                     type="text"
                     placeholder="Search stocks..."
-                    className="p-2 rounded text-black w-full"
+                    className="p-2 rounded bg-white text-black w-full"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                 />

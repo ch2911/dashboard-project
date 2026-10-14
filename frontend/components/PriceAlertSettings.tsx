@@ -66,7 +66,7 @@ export default function PriceAlertSettings() {
                         <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
                         Email me about big moves
                     </label>
-                    <label className="flex items-center gap-2">
+                    <label className="flex flex-wrap items-center gap-2">
                         Alert when a stock moves at least
                         <input
                             type="number"

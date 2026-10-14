@@ -15,6 +15,7 @@ import {
 import SlowServerNotice from "../../../../components/SlowServerNotice";
 import { stockPageHref } from "../../../../utils/stockLinks";
 import { seriesColor } from "../../../../utils/chartColors";
+import { formatPriceTick } from "../../../../utils/chartFormat";
 import { useSeriesColors } from "../../../../hooks/useSeriesColors";
 import PortfolioTooltip, { type TooltipRow } from "../../../../components/PortfolioTooltip";
 
@@ -150,13 +151,13 @@ export default function Dashboard() {
     })();
 
     return (
-        <div className="min-h-screen app-bg text-white p-6">
-            <h1 className="text-3xl font-bold mb-6">📊 My Pinned Stocks</h1>
+        <div>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-6">📊 My Pinned Stocks</h1>
             <SlowServerNotice active={stillLoading} />
 
             <section className="bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-md mb-6">
                 {/* Wrap the title and buttons in a flex container */}
-                <div className="flex justify-between items-center mb-3">
+                <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
                     <h2 className="text-xl font-semibold">Portfolio Overview</h2>
 
                     {/* --- ADD THIS DIV WITH THE BUTTONS --- */}
@@ -180,7 +181,7 @@ export default function Dashboard() {
                     <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={chartData}>
                             <XAxis dataKey="name" stroke="#bae6fd" />
-                            <YAxis stroke="#bae6fd" domain={['dataMin - 5', 'dataMax + 5']} />
+                            <YAxis stroke="#bae6fd" domain={['dataMin - 5', 'dataMax + 5']} tickFormatter={formatPriceTick} />
                             <Tooltip
                                 content={({ active, payload, label }) => (
                                     <PortfolioTooltip
@@ -292,9 +293,9 @@ export default function Dashboard() {
 
                             return (
                                 <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className="block p-3 rounded-xl bg-white/5 border border-sky-300/20 hover:bg-white/10 transition">
-                                    <div className="flex justify-between">
+                                    <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-4">
                                         <p className="font-medium text-white">[{item.ticker}] {item.title}</p>
-                                        <span className="text-sm text-sky-200">{prettyTime}</span>
+                                        <span className="text-sm text-sky-200 sm:whitespace-nowrap">{prettyTime}</span>
                                     </div>
                                     <p className={`text-sm mt-1 ${
                                         item.sentiment.label === "positive"

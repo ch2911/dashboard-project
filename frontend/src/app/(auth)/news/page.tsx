@@ -19,8 +19,8 @@ export default function NewsPage() {
     }, []);
 
     return (
-        <div>
-            <h1 className="text-3xl font-bold mb-6">📰 Trending Financial News</h1>
+        <div className="max-w-4xl mx-auto">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-6">📰 Trending Financial News</h1>
             <SlowServerNotice active={articles === undefined} />
 
             {articles === undefined && <p className="text-center text-sky-200">Loading trending news...</p>}
@@ -40,9 +40,9 @@ export default function NewsPage() {
                         <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
                            className="block p-4 rounded-xl bg-white/5 border border-sky-300/20 hover:bg-white/10 transition">
 
-                            <div className="flex justify-between items-start">
-                                <p className="font-medium text-white text-lg">{item.title}</p>
-                                <span className="text-sm text-sky-200 flex-shrink-0 ml-4">{prettyTime}</span>
+                            <div className="flex justify-between items-start gap-4">
+                                <p className="font-medium text-white text-base sm:text-lg">{item.title}</p>
+                                <span className="text-sm text-sky-200 flex-shrink-0">{prettyTime}</span>
                             </div>
 
                             <p className={`text-sm mt-1 ${

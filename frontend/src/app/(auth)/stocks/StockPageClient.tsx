@@ -12,6 +12,7 @@ import {
 } from "../../../../utils/api";
 import { usePinnedStocks } from "../../../../hooks/usePinnedStocks";
 import SlowServerNotice from "../../../../components/SlowServerNotice";
+import { formatPriceTick } from "../../../../utils/chartFormat";
 
 import {
     LineChart,
@@ -101,9 +102,9 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
     const stillLoading = price === undefined || sentiment === undefined || history === undefined;
 
     return (
-        <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold">{ticker}</h1>
+        <div>
+            <div className="flex justify-between items-center gap-4 mb-6">
+                <h1 className="text-2xl sm:text-3xl font-bold break-all">{ticker}</h1>
                 {isPinned ? (
                     <button onClick={() => unpinStock(ticker)} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg shadow-md">
                         Unpin
@@ -138,7 +139,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
 
             {/* Price Chart */}
             <section className={sectionClass}>
-                <div className="flex justify-between items-center mb-3">
+                <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
                     <h2 className="text-xl font-semibold">Price Chart</h2>
                     <div className="flex gap-2">
                         <button
@@ -170,7 +171,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                             <ResponsiveContainer width="100%" height="100%">
                                 <LineChart data={combinedChartData}>
                                     <XAxis dataKey="name" stroke="#bae6fd" />
-                                    <YAxis stroke="#bae6fd" domain={['dataMin - 1', 'dataMax + 1']} />
+                                    <YAxis stroke="#bae6fd" domain={['dataMin - 1', 'dataMax + 1']} tickFormatter={formatPriceTick} />
                                     <Tooltip />
                                     <Legend />
                                     <Line name="Historical Price" type="monotone" dataKey="price" stroke="#38bdf8" strokeWidth={2} dot={false} connectNulls />
@@ -213,9 +214,9 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                                 rel="noopener noreferrer"
                                 className="block p-3 rounded-xl bg-white/5 border border-sky-300/20 hover:bg-white/10 transition"
                             >
-                                <div className="flex justify-between">
+                                <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-4">
                                     <p className="font-medium text-white">{item.title}</p>
-                                    <span className="text-sm text-sky-200">{prettyTime}</span>
+                                    <span className="text-sm text-sky-200 sm:whitespace-nowrap">{prettyTime}</span>
                                 </div>
                                 <p
                                     className={`text-sm mt-1 ${

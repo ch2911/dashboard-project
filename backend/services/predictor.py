@@ -38,7 +38,10 @@ def _make_forecast(ticker):
         # Burg's method estimates this directly instead of by iterative maximum likelihood.
         # It uses about a sixth of the CPU and gives near-identical forecasts, which matters
         # on a small server.
-        model = ARIMA(stock_data["Close"], order=(10, 1, 0))
+        # Pass just the prices, not the dates: trading days skip weekends and holidays, and
+        # statsmodels 0.15 refuses to forecast from dates without a regular frequency. The
+        # forecast dates are worked out separately below.
+        model = ARIMA(stock_data["Close"].to_numpy(), order=(10, 1, 0))
         with warnings.catch_warnings():
             # Burg's method works on the daily changes, so statsmodels warns that it differenced
             # the prices first. That's expected, so keep it out of the server logs.

@@ -28,6 +28,7 @@ def test_forecast_prices_are_sensible(fake_yfinance):
 
     forecast = predict_stock_price("AAPL")
 
+    assert len(forecast) == 7
     for point in forecast:
         assert math.isfinite(point["price"])
         assert round(point["price"], 2) == point["price"]

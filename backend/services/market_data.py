@@ -45,6 +45,25 @@ def get_history(ticker, period, interval, cache_seconds):
     return data
 
 
+def daily_move(data):
+    """(latest price, % change from the previous close, date of the latest bar) from daily bars.
+
+    The last daily bar is today's (updated live during market hours) and the one before it is the
+    previous close, so the change is the day's move, as on a stock app. Returns None without data.
+    """
+    closes = data["Close"].dropna() if "Close" in data else []
+    if len(closes) == 0:
+        return None
+
+    price = float(closes.iloc[-1])
+    if len(closes) > 1:
+        previous_close = float(closes.iloc[-2])
+        change = (price - previous_close) / previous_close * 100
+    else:
+        change = 0.0  # only one day of data, e.g. a new listing
+    return price, change, closes.index[-1].date()
+
+
 def _fetch_with_retries(ticker, period, interval):
     for delay in RETRY_DELAYS:
         try:

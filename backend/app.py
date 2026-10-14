@@ -9,7 +9,7 @@ for _thread_var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"
 
 import sys
 import re
-from flask import Flask, jsonify, request
+from flask import Flask, abort, jsonify, request
 from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
 from services.news_fetcher import fetch_news
@@ -21,6 +21,7 @@ from services.predictor import predict_stock_price
 from services.cache import TTLCache
 from services.market_data import daily_move, get_history
 from services import accounts
+from services.tickers import clean_ticker
 from yfinance.exceptions import YFRateLimitError
 
 # This helper function finds the correct path for bundled files
@@ -36,6 +37,17 @@ def resource_path(relative_path):
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Longest search the API accepts. Searches are cached, so this also keeps junk out of the cache.
+MAX_SEARCH_LENGTH = 50
+
+
+def requested_ticker():
+    """The ?stock= ticker (TSLA if none is given), or a 400 error if it doesn't look like a ticker."""
+    ticker = clean_ticker(request.args.get("stock", "TSLA"))
+    if ticker is None:
+        abort(400, description="That doesn't look like a stock ticker.")
+    return ticker
 
 
 @app.errorhandler(YFRateLimitError)
@@ -110,7 +122,7 @@ def extract_symbols(text):
 
 @app.route("/sentiment", methods=["GET"])
 def get_sentiment():
-    ticker = request.args.get("stock", "TSLA")
+    ticker = requested_ticker()
     articles = fetch_news(news_query(ticker), search_in="title,description")
     analyzed = [
         {
@@ -129,6 +141,8 @@ def search_stock():
     query = request.args.get("q", "").lower().strip()
     if not query:
         return jsonify([])
+    if len(query) > MAX_SEARCH_LENGTH:
+        return jsonify({"error": "That search is too long."}), 400
 
     # 1. Search local stocks first
     matches = [
@@ -144,12 +158,10 @@ def search_stock():
     if cached is not None:
         return jsonify(cached)
 
-    url = (
-        f"https://www.alphavantage.co/query?function=SYMBOL_SEARCH"
-        f"&keywords={query}&apikey={ALPHAVANTAGE_KEY}"
-    )
+    # requests encodes the search, so characters like "&" can't add parameters of their own
+    params = {"function": "SYMBOL_SEARCH", "keywords": query, "apikey": ALPHAVANTAGE_KEY}
     try:
-        r = requests.get(url, timeout=5)
+        r = requests.get("https://www.alphavantage.co/query", params=params, timeout=5)
         r.raise_for_status()
         data = r.json()
     except Exception as e:
@@ -177,7 +189,7 @@ def search_stock():
 
 @app.route("/price", methods=["GET"])
 def get_price():
-    ticker = request.args.get("stock", "TSLA")
+    ticker = requested_ticker()
     data = get_history(ticker, period="5d", interval="1d", cache_seconds=60)
     move = daily_move(data)
     if move is None:
@@ -192,7 +204,7 @@ def get_price():
 
 @app.route("/price_history", methods=["GET"])
 def price_history():
-    ticker = request.args.get("stock", "TSLA")
+    ticker = requested_ticker()
     # Get the requested time range, defaulting to 'daily'
     time_range = request.args.get("range", "daily")
 
@@ -236,7 +248,7 @@ def get_trending_news():
 
 @app.route("/predict", methods=["GET"])
 def get_prediction():
-    ticker = request.args.get("stock", "TSLA")
+    ticker = requested_ticker()
     predictions = predict_stock_price(ticker)
     return jsonify(predictions)
 
@@ -280,4 +292,5 @@ def health():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Flask's debugger lets anyone who can reach it run code, so it's only on when asked for
+    app.run(debug=os.getenv("FLASK_DEBUG") == "1")

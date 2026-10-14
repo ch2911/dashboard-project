@@ -20,6 +20,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from services.market_data import daily_move, get_history
+from services.tickers import clean_ticker
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +148,12 @@ def run(store, sender, today, get_change=todays_change, site_url=None, owner_id=
     for row in store.favorites():
         if owner_id and row["user_id"] != owner_id:
             continue
-        pinned[row["user_id"]].add(row["symbol"].upper())
+        symbol = clean_ticker(row["symbol"])
+        if symbol is None:
+            # Users write their own pinned stocks, so skip anything that isn't a ticker
+            # rather than sending it to Yahoo Finance or into an email
+            continue
+        pinned[row["user_id"]].add(symbol)
 
     settings = store.settings()
     sent_today = store.already_sent(today)

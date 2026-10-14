@@ -297,3 +297,15 @@ def test_job_runs_with_keys_from_the_environment(monkeypatch):
     assert isinstance(seen["sender"], ResendSender)
     assert seen["site_url"] == "https://example.com/settings/"
     assert seen["owner_id"] == "owner-uuid"
+
+
+def test_skips_pinned_symbols_that_are_not_tickers():
+    # Pinned stocks are written by users through Supabase, so they could hold any text
+    store = FakeStore([("u1", "aapl"), ("u1", "<b>HI</b>"), ("u1", "X" * 40), ("u1", "")])
+    sender = FakeSender()
+    get_change = changes(AAPL=7.0)
+
+    run(store, sender, TODAY, get_change)
+
+    assert get_change.calls == ["AAPL"]
+    assert sender.messages[0]["subject"] == "AAPL is up 7.0% today"

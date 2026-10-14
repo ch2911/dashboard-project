@@ -45,7 +45,10 @@ def fetch_news(query="Tesla", search_in=None):
     results = []
     for a in data.get("articles", [])[:20]:
         title = a.get("title", "") or ""
-        article_url = a.get("url", "")
+        article_url = a.get("url", "") or ""
+        if not article_url.lower().startswith(("https://", "http://")):
+            # The site turns each URL into a link, and a "javascript:" one would run code when clicked
+            continue
         published = a.get("publishedAt")
         if not published:
             published = datetime.now(timezone.utc).replace(microsecond=0).isoformat()

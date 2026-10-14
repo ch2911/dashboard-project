@@ -153,6 +153,8 @@ By default the app signs users in through the author's Supabase project. To use 
      for delete using (auth.uid() = user_id);
    ```
 
+   Then run `supabase/favorites_hardening.sql`, which only lets users pin real-looking tickers, each once, up to 50.
+
 3. Replace the URL and anon key in `frontend/lib/supabaseClient.ts` with your project's own, from Project Settings → API.
 
 ## Price alert emails

@@ -14,6 +14,8 @@ import {
 } from "../../../../utils/api";
 import SlowServerNotice from "../../../../components/SlowServerNotice";
 import { stockPageHref } from "../../../../utils/stockLinks";
+import { seriesColor } from "../../../../utils/chartColors";
+import PortfolioTooltip, { type TooltipRow } from "../../../../components/PortfolioTooltip";
 
 import {
     LineChart,
@@ -21,6 +23,7 @@ import {
     XAxis,
     YAxis,
     Tooltip,
+    Legend,
     ResponsiveContainer,
 } from "recharts";
 
@@ -176,7 +179,16 @@ export default function Dashboard() {
                         <LineChart data={chartData}>
                             <XAxis dataKey="name" stroke="#bae6fd" />
                             <YAxis stroke="#bae6fd" domain={['dataMin - 5', 'dataMax + 5']} />
-                            <Tooltip />
+                            <Tooltip
+                                content={({ active, payload, label }) => (
+                                    <PortfolioTooltip
+                                        active={active}
+                                        payload={payload as unknown as TooltipRow[]}
+                                        label={label as string | number | undefined}
+                                    />
+                                )}
+                            />
+                            <Legend formatter={(value) => <span className="text-sky-100">{value}</span>} />
                             {pinned.map((ticker, i) => (
                                 <Line
                                     key={ticker}
@@ -184,27 +196,33 @@ export default function Dashboard() {
                                     type="monotone"
                                     dataKey={ticker}
                                     strokeWidth={2}
-                                    stroke={["#38bdf8", "#f472b6", "#a78bfa", "#facc15"][i % 4]}
+                                    stroke={seriesColor(i)}
                                     dot={false}
                                     connectNulls
                                 />
                             ))}
+                            {/* Each forecast is a dashed line in its stock's colour. It's left out of the legend,
+                                which already names the stock. */}
                             {pinned.map((ticker, i) => (
                                 <Line
                                     key={`${ticker}-pred`}
-                                    name={`${ticker} (Pred.)`}
+                                    name={`${ticker} forecast`}
                                     type="monotone"
                                     dataKey={`${ticker}-pred`}
-                                    stroke="#4ade80"
+                                    stroke={seriesColor(i)}
                                     strokeWidth={2}
-                                    strokeDasharray="3 3"
+                                    strokeDasharray="4 4"
                                     dot={false}
                                     connectNulls
+                                    legendType="none"
                                 />
                             ))}
                         </LineChart>
                     </ResponsiveContainer>
                 </div>
+                {timeRange === 'daily' && !chartLoading && pinned.length > 0 && (
+                    <p className="text-sm text-sky-200 mt-2">Dashed lines show each stock&apos;s 7-day forecast.</p>
+                )}
                 {chartLoading && <p className="text-sm text-sky-200 mt-2">Loading chart...</p>}
                 {chartMissing.length > 0 && (
                     <p className="text-sm text-sky-200 mt-2">
@@ -221,7 +239,7 @@ export default function Dashboard() {
                     <p className="text-sky-200">You haven&apos;t pinned any stocks yet. Search for one above and press Pin.</p>
                 )}
                 <ul className="space-y-3">
-                    {pinned.map((ticker) => {
+                    {pinned.map((ticker, i) => {
                         const stock = prices[ticker];
                         return (
                             <li key={ticker}>
@@ -229,7 +247,11 @@ export default function Dashboard() {
                                     href={stockPageHref(ticker)}
                                     className="flex justify-between items-center p-3 rounded-xl bg-white/5 border border-sky-300/20 hover:bg-white/10 transition"
                                 >
-                                    <span className="font-bold text-lg">{ticker}</span>
+                                    <span className="flex items-center gap-2 font-bold text-lg">
+                                        {/* Same colour as this stock's line on the chart */}
+                                        <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: seriesColor(i) }} aria-hidden="true" />
+                                        {ticker}
+                                    </span>
                                     {stock ? (
                                         <span>
                                             ${stock.price.toFixed(2)}{" "}

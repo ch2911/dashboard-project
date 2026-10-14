@@ -191,7 +191,7 @@ A second workflow, `.github/workflows/smoke-test.yml`, runs the smoke test again
 | Service | Setup |
 | --- | --- |
 | GitHub Pages (frontend) | In the repo's Settings → Pages, set Source to **GitHub Actions**. Under Settings → Secrets and variables → Actions → Variables, add `API_URL` set to the Render URL. |
-| Render (API) | Web service with root directory `backend`, build command `pip install -r requirements.txt`, start command `gunicorn app:app`, and Auto-Deploy set to **After CI Checks Pass**. Environment variables: `ALPHAVANTAGE_KEY`, `NEWSAPI_KEY` and `PYTHON_VERSION=3.12.7`. |
+| Render (API) | Web service with root directory `backend`, build command `pip install -r requirements.txt`, start command `gunicorn app:app`, and Auto-Deploy set to **After CI Checks Pass**. Environment variables: `ALPHAVANTAGE_KEY`, `NEWSAPI_KEY`, `PYTHON_VERSION=3.12.7`, and `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API; needed for "Delete profile" on the settings page, and must never go in the frontend). |
 | Supabase | Under Authentication → URL Configuration, set the Site URL to the GitHub Pages address so confirmation emails link back to the live site. |
 
 ## Desktop app

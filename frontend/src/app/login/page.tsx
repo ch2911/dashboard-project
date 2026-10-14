@@ -49,14 +49,14 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-900 via-sky-700 to-sky-500 text-white">
+        <div className="min-h-screen flex items-center justify-center app-bg text-white">
             <div className="bg-white/10 backdrop-blur-md p-8 rounded-2xl shadow-lg w-96">
                 <h1 className="text-2xl font-bold mb-4 text-center">🔑 Login</h1>
                 <form onSubmit={handleLogin} className="space-y-4">
                     <input
                         type="email"
                         placeholder="Email"
-                        className="w-full p-2 rounded text-black"
+                        className="w-full p-2 rounded bg-white text-black"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
@@ -64,7 +64,7 @@ export default function LoginPage() {
                     <input
                         type="password"
                         placeholder="Password"
-                        className="w-full p-2 rounded text-black"
+                        className="w-full p-2 rounded bg-white text-black"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required

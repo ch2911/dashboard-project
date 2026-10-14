@@ -184,7 +184,12 @@ def test_unknown_route_returns_json_404(client):
 def test_health_reports_which_keys_are_set(client, monkeypatch):
     monkeypatch.setenv("NEWSAPI_KEY", "a-key")
     monkeypatch.setattr(app_module, "ALPHAVANTAGE_KEY", None)
+    monkeypatch.delenv("SUPABASE_SERVICE_ROLE_KEY", raising=False)
 
     data = client.get("/health").get_json()
 
-    assert data == {"status": "ok", "keys": {"newsapi": True, "alphavantage": False}}
+    assert data == {
+        "status": "ok",
+        "keys": {"newsapi": True, "alphavantage": False},
+        "features": {"delete_profile": False},
+    }

@@ -148,7 +148,7 @@ export default function Dashboard() {
     })();
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-sky-900 via-sky-700 to-sky-500 text-white p-6">
+        <div className="min-h-screen app-bg text-white p-6">
             <h1 className="text-3xl font-bold mb-6">📊 My Pinned Stocks</h1>
             <SlowServerNotice active={stillLoading} />
 

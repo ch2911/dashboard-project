@@ -82,3 +82,22 @@ export async function searchStocks(query: string): Promise<StockSuggestion[]> {
 export async function fetchTrendingNews(): Promise<TrendingArticle[] | null> {
     return getList<TrendingArticle>("/trending_news");
 }
+
+/**
+ * Permanently delete the signed-in user's profile (their pinned stocks and their login).
+ * Returns null on success, or a message to show if it failed.
+ */
+export async function deleteAccount(accessToken: string): Promise<string | null> {
+    try {
+        const res = await fetch(`${API_URL}/account`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${accessToken}` },
+            signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        });
+        if (res.ok) return null;
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        return body?.error ?? "Your profile couldn't be deleted. Please try again.";
+    } catch {
+        return "Couldn't reach the server. Please try again.";
+    }
+}

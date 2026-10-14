@@ -48,12 +48,13 @@ def _make_forecast(ticker):
             warnings.filterwarnings("ignore", message="Provided `endog` series has been differenced")
             model_fit = model.fit(method="burg")
 
-        # Predict the next 7 days
+        # Predict the next 7 trading days
         predictions = model_fit.forecast(steps=7)
 
-        # Create future dates for the predictions
+        # Each forecast step is one trading day, so date them on weekdays only. Market holidays
+        # aren't skipped, so a forecast spanning one has a point on that day.
         last_date = stock_data.index[-1]
-        future_dates = pd.to_datetime([last_date + pd.DateOffset(days=i) for i in range(1, 8)])
+        future_dates = [last_date + pd.offsets.BDay(i) for i in range(1, 8)]
 
         return [
             {"time": date.isoformat(), "price": round(float(price), 2)}

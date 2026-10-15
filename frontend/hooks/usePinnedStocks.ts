@@ -4,37 +4,49 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../lib/useAuth";
 
+/** What visitors without an account see on the dashboard. A few, as each one costs several API requests. */
+export const GUEST_STOCKS = ["AAPL", "MSFT", "NVDA", "TSLA"];
+
 export function usePinnedStocks() {
-    const { user } = useAuth();
+    const { user, loading: authLoading } = useAuth();
     const [pinned, setPinned] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
+    // True when the pinned stocks couldn't be loaded, so the page doesn't mistake it for "none pinned"
+    const [error, setError] = useState(false);
+
+    const isGuest = !authLoading && !user;
 
     // Load favorites for the logged-in user
     useEffect(() => {
+        // Wait to find out who's signed in, so a signed-in user doesn't briefly get the guest stocks
+        if (authLoading) return;
+
+        setError(false);
         if (!user) {
-            setPinned([]); // no user → no favorites
+            setPinned(GUEST_STOCKS); // no account → show some popular stocks instead
             setLoading(false);
             return;
         }
 
         const fetchFavorites = async () => {
             setLoading(true);
-            const { data, error } = await supabase
-                .from("favorites")
-                .select("symbol")
-                .eq("user_id", user.id); // ✅ filter by logged-in user
-
-            if (error) {
-                console.error("Error fetching favorites:", error);
-                setPinned([]);
-            } else {
+            try {
+                const { data, error } = await supabase
+                    .from("favorites")
+                    .select("symbol")
+                    .eq("user_id", user.id); // ✅ filter by logged-in user
+                if (error) throw error;
                 setPinned(data.map((row) => row.symbol));
+            } catch (err) {
+                console.error("Error fetching favorites:", err);
+                setPinned([]);
+                setError(true);
             }
             setLoading(false);
         };
 
         fetchFavorites();
-    }, [user]);
+    }, [user, authLoading]);
 
     // Add a stock to favorites
     const pinStock = async (symbol: string) => {
@@ -68,5 +80,5 @@ export function usePinnedStocks() {
         }
     };
 
-    return { pinned, loading, pinStock, unpinStock };
+    return { pinned, loading, error, isGuest, pinStock, unpinStock };
 }

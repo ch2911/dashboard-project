@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
     fetchSentiment,
     fetchPrice,
@@ -43,8 +44,10 @@ type ChartDataPoint = {
 const sectionClass = "bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-md mb-6";
 
 export default function StockPageClient({ ticker }: { ticker: string }) {
-    const { pinned, pinStock, unpinStock } = usePinnedStocks();
-    const isPinned = pinned.includes(ticker);
+    const { pinned, isGuest, pinStock, unpinStock } = usePinnedStocks();
+    // Visitors without an account can't pin, so pressing Pin asks them to sign up instead
+    const isPinned = !isGuest && pinned.includes(ticker);
+    const [askToSignUp, setAskToSignUp] = useState(false);
     // Both lines use the stock's colour from the home page chart, so a stock looks the same on both pages
     const lineColor = seriesColor(useSeriesColors(pinned), ticker);
 
@@ -123,11 +126,19 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                         Unpin
                     </button>
                 ) : (
-                    <button onClick={() => pinStock(ticker)} className="shrink-0 bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg shadow-md">
+                    <button onClick={() => (isGuest ? setAskToSignUp(true) : pinStock(ticker))} className="shrink-0 bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg shadow-md">
                         Pin
                     </button>
                 )}
             </div>
+
+            {askToSignUp && (
+                <p role="status" className="bg-white/10 rounded-xl p-3 mb-6 text-sky-100">
+                    You need an account to pin stocks.{" "}
+                    <Link href="/login" className="text-sky-300 underline hover:text-white">Sign up for free</Link> and
+                    your pinned stocks will appear together on your dashboard.
+                </p>
+            )}
 
             <SlowServerNotice active={stillLoading} />
 

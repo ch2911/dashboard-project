@@ -2,7 +2,7 @@
 
 [![CI/CD](https://github.com/ch2911/dashboard-project/actions/workflows/ci.yml/badge.svg)](https://github.com/ch2911/dashboard-project/actions/workflows/ci.yml)
 
-A full-stack stock market dashboard with live prices, a 7-day price forecast and sentiment analysis of the latest news headlines. Users sign in to pin the stocks they follow.
+A full-stack stock market dashboard with live prices, a 7-day price forecast and sentiment analysis of the latest news headlines. Users sign in to pin the stocks they follow, and visitors can try it without an account from the login page, with a few popular stocks already showing.
 
 Built with Next.js (TypeScript) and a Python Flask API.
 

@@ -57,6 +57,12 @@ describe("Login page", () => {
         expect(push).not.toHaveBeenCalled();
     });
 
+    it("lets visitors try the dashboard without an account", () => {
+        render(<LoginPage />);
+        const link = screen.getByRole("link", { name: "Try it without an account" });
+        expect(link.getAttribute("href")).toBe("/dashboard");
+    });
+
     it("shows why signing up failed", async () => {
         auth.signUp.mockResolvedValue({ error: { message: "User already registered" } } as never);
         fillIn();

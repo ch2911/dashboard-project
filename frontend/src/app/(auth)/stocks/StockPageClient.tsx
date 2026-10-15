@@ -11,6 +11,8 @@ import {
     type StockPrice,
 } from "../../../../utils/api";
 import { usePinnedStocks } from "../../../../hooks/usePinnedStocks";
+import { useSeriesColors } from "../../../../hooks/useSeriesColors";
+import { seriesColor } from "../../../../utils/chartColors";
 import SlowServerNotice from "../../../../components/SlowServerNotice";
 import { formatPriceTick } from "../../../../utils/chartFormat";
 
@@ -35,6 +37,8 @@ const sectionClass = "bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-md mb-
 export default function StockPageClient({ ticker }: { ticker: string }) {
     const { pinned, pinStock, unpinStock } = usePinnedStocks();
     const isPinned = pinned.includes(ticker);
+    // Both lines use the stock's colour from the home page chart, so a stock looks the same on both pages
+    const lineColor = seriesColor(useSeriesColors(pinned), ticker);
 
     const [timeRange, setTimeRange] = useState<'daily' | 'intraday'>('daily');
 
@@ -174,12 +178,15 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                                     <YAxis stroke="#bae6fd" domain={['dataMin - 1', 'dataMax + 1']} tickFormatter={formatPriceTick} />
                                     <Tooltip />
                                     <Legend />
-                                    <Line name="Historical Price" type="monotone" dataKey="price" stroke="#38bdf8" strokeWidth={2} dot={false} connectNulls />
+                                    <Line name="Historical Price" type="monotone" dataKey="price" stroke={lineColor} strokeWidth={2} dot={false} connectNulls />
                                     {/* The prediction line only renders when it has data */}
-                                    <Line name="Predicted Price" type="monotone" dataKey="prediction" stroke="#4ade80" strokeWidth={2} strokeDasharray="5 5" dot={false} connectNulls />
+                                    <Line name="Predicted Price" type="monotone" dataKey="prediction" stroke={lineColor} strokeWidth={2} strokeDasharray="4 4" dot={false} connectNulls />
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>
+                        {timeRange === 'daily' && !!prediction?.length && (
+                            <p className="text-sm text-sky-200 mt-2">The dashed line shows the 7-day forecast.</p>
+                        )}
                         {timeRange === 'daily' && prediction === undefined && (
                             <p className="text-sm text-sky-200 mt-2">Loading the 7-day forecast...</p>
                         )}

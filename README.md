@@ -8,13 +8,17 @@ Built with Next.js (TypeScript) and a Python Flask API.
 
 **Live demo:** [ch2911.github.io/dashboard-project](https://ch2911.github.io/dashboard-project/). The API sleeps when nobody has used it for a while, so the first load can take up to a minute.
 
-<!-- Screenshots: put images in docs/ and reference them here, e.g. ![Dashboard](docs/dashboard.png) -->
+![The dashboard with three pinned stocks on the 3-month chart](docs/dashboard.png)
+
+| A stock page with the 7-day likely range | On a phone |
+| --- | --- |
+| ![Apple's stock page, with the shaded forecast range after today's price](docs/stock-forecast.png) | ![The dashboard on a phone](docs/phone.png) |
 
 ## Features
 
 - **Live prices**: the latest price for each stock, from Yahoo Finance via `yfinance`.
 - **Price charts**: every chart, on the dashboard and on each stock's page, switches between 1 day (today in 5-minute steps), 1 week (the last 5 trading days in 30-minute steps), 1 month and 3 months (daily closing prices), drawn with Recharts.
-- **Price forecast**: a likely range for the next 7 trading days, shown on the 1-month and 3-month views. The middle line stays at the latest price, and the shaded band covers 8 in 10 likely outcomes, based on the last six months of daily moves. A backtest (`scripts/backtest_forecast.py`) found that no model tried, including the ARIMA used before, predicted the next week better than the latest price.
+- **Price forecast**: a likely range for the next 7 trading days, shown on the 1-month and 3-month views. The middle line stays at the latest price, and the shaded band covers 8 in 10 likely outcomes, based on the last six months of daily moves. A [backtest](docs/backtest-report.md) of 44,100 forecasts per model, across 63 stocks over two years, found that no model beat the latest price: carrying today's price forward missed by 2.85% on average, gradient-boosted trees by 2.87% and the ARIMA used before by 2.95%, and both models called the direction right only about half the time.
 - **News sentiment**: the latest headlines mentioning each stock's ticker or company name, from NewsAPI, each scored positive, neutral or negative with VADER.
 - **Trending news**: a general financial news feed that tags which stocks each headline mentions.
 - **Search**: searches a built-in list of 69 popular stocks first, then falls back to Alpha Vantage's symbol search.
@@ -46,26 +50,33 @@ dashboard-project/
 │   ├── app.py               # Flask API with all the endpoints
 │   ├── gunicorn.conf.py     # server settings used on Render (threads, timeout)
 │   ├── services/
+│   │   ├── accounts.py      # deletes a user's profile through Supabase's admin API
 │   │   ├── cache.py         # short-lived caches for prices, forecasts, news and searches
 │   │   ├── market_data.py   # Yahoo Finance prices, with retries
 │   │   ├── news_fetcher.py  # headlines from NewsAPI
 │   │   ├── price_alerts.py  # finds big daily moves in pinned stocks and emails them
 │   │   ├── predictor.py     # 7-day forecast range
-│   │   └── sentiment.py     # VADER sentiment scores
+│   │   ├── sentiment.py     # VADER sentiment scores
+│   │   └── tickers.py       # checks a ticker looks real before it's sent to Yahoo Finance
 │   ├── tests/               # pytest suite (external APIs are faked)
 │   ├── send_price_alerts.py # emails users about big daily moves (run by GitHub Actions)
 │   ├── stocks.json          # the 69 stocks searched before falling back to Alpha Vantage
 │   ├── requirements.txt
-│   └── requirements-dev.txt # adds pytest and pytest-cov for running the tests
+│   └── requirements-dev.txt # adds pytest and pytest-cov for the tests, and statsmodels for the backtest
 ├── frontend/
-│   ├── src/app/             # pages: login, dashboard, news, stocks (any ticker: /stocks/?ticker=AAPL)
+│   ├── src/app/             # pages: login, dashboard, news, settings, stocks (any ticker: /stocks/?ticker=AAPL)
 │   ├── components/  hooks/  lib/  utils/
 │   └── package.json
 ├── .github/workflows/
 │   ├── ci.yml               # tests, then deploys to GitHub Pages
 │   ├── smoke-test.yml       # checks the live site every morning
-│   └── price-alerts.yml     # sends price alert emails during market hours
-├── scripts/smoke_test.py    # the checks the smoke test runs
+│   ├── price-alerts.yml     # sends price alert emails during market hours
+│   └── forecast-backtest.yml # compares forecast models on past prices (run from the Actions tab)
+├── scripts/
+│   ├── backtest_forecast.py # the forecast backtest
+│   └── smoke_test.py        # the checks the smoke test runs
+├── supabase/                # SQL to run once in Supabase: pinned-stock limits and price alert tables
+├── docs/                    # screenshots and the latest backtest report
 └── .env.example
 ```
 

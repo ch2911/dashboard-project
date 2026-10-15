@@ -24,6 +24,9 @@ TEMPORARY_ERRORS = (YFRateLimitError, requests.exceptions.ConnectionError, reque
 
 _history_cache = TTLCache(seconds=60)
 
+# Company names Yahoo sends along with the prices. They rarely change, so they're kept for a day.
+_name_cache = TTLCache(seconds=24 * 60 * 60)
+
 
 def clear_cache():
     _history_cache.clear()
@@ -43,6 +46,11 @@ def get_history(ticker, period, interval, cache_seconds):
     if not data.empty:
         _history_cache.set(key, data, seconds=cache_seconds)
     return data
+
+
+def company_name(ticker):
+    """The company's name from the last price download for this ticker, or None if there isn't one."""
+    return _name_cache.get(ticker.upper())
 
 
 def daily_move(data):
@@ -67,10 +75,28 @@ def daily_move(data):
 def _fetch_with_retries(ticker, period, interval):
     for delay in RETRY_DELAYS:
         try:
-            return yf.Ticker(ticker).history(period=period, interval=interval)
+            return _fetch(ticker, period, interval)
         except TEMPORARY_ERRORS as error:
             logger.warning("Yahoo Finance request for %s failed (%s), trying again in %ss",
                            ticker, type(error).__name__, delay)
             time.sleep(delay)
     # Last attempt: if this fails too, the error goes to the caller
-    return yf.Ticker(ticker).history(period=period, interval=interval)
+    return _fetch(ticker, period, interval)
+
+
+def _fetch(ticker, period, interval):
+    stock = yf.Ticker(ticker)
+    data = stock.history(period=period, interval=interval)
+    _remember_name(ticker, stock)
+    return data
+
+
+def _remember_name(ticker, stock):
+    """Save the company name Yahoo sent with the prices, so it costs no extra request."""
+    try:
+        metadata = stock.history_metadata or {}
+    except Exception:
+        return  # the name is a nice extra, so never let it break the prices
+    name = metadata.get("longName") or metadata.get("shortName")
+    if isinstance(name, str) and name.strip():
+        _name_cache.set(ticker.upper(), name.strip())

@@ -19,7 +19,7 @@ import json
 from dotenv import load_dotenv
 from services.predictor import predict_stock_price
 from services.cache import TTLCache
-from services.market_data import daily_move, get_history
+from services.market_data import company_name, daily_move, get_history
 from services import accounts
 from services.tickers import clean_ticker
 from yfinance.exceptions import YFRateLimitError
@@ -198,6 +198,8 @@ def get_price():
 
     return jsonify({
         "ticker": ticker,
+        # Our own list first (it has tidy names), then the name Yahoo sent with the prices
+        "name": STOCK_NAMES.get(ticker) or company_name(ticker),
         "price": round(price, 2),
         "change": round(change, 2)
     })

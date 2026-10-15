@@ -264,22 +264,25 @@ export default function Dashboard() {
                             <li key={ticker}>
                                 <Link
                                     href={stockPageHref(ticker)}
-                                    className="flex justify-between items-center p-3 rounded-xl bg-white/5 border border-sky-300/20 hover:bg-white/10 transition"
+                                    className="flex justify-between items-center gap-3 p-3 rounded-xl bg-white/5 border border-sky-300/20 hover:bg-white/10 transition"
                                 >
-                                    <span className="flex items-center gap-2 font-bold text-lg">
+                                    <span className="flex items-center gap-2 min-w-0">
                                         {/* Same colour as this stock's line on the chart */}
-                                        <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: seriesColor(colors, ticker) }} aria-hidden="true" />
-                                        {ticker}
+                                        <span className="shrink-0 inline-block w-3 h-3 rounded-full" style={{ backgroundColor: seriesColor(colors, ticker) }} aria-hidden="true" />
+                                        <span className="min-w-0">
+                                            <span className="block font-bold text-lg">{ticker}</span>
+                                            {stock?.name && <span className="block text-sm text-sky-200 truncate">{stock.name}</span>}
+                                        </span>
                                     </span>
                                     {stock ? (
-                                        <span>
+                                        <span className="shrink-0">
                                             ${stock.price.toFixed(2)}{" "}
                                             <span className={`ml-2 font-bold ${ stock.change >= 0 ? "text-green-400" : "text-red-400" }`}>
                                                 {stock.change >= 0 ? "+" : ""}{stock.change.toFixed(2)}%
                                             </span>
                                         </span>
                                     ) : (
-                                        <span className="text-sky-200">{stock === null ? "Unavailable" : "Loading..."}</span>
+                                        <span className="shrink-0 text-sky-200">{stock === null ? "Unavailable" : "Loading..."}</span>
                                     )}
                                 </Link>
                             </li>

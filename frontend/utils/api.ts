@@ -9,6 +9,8 @@ export const REQUEST_TIMEOUT_MS = 90_000;
 
 export type StockPrice = {
     ticker: string;
+    /** The company's full name, or null when the server doesn't know it */
+    name?: string | null;
     price: number;
     change: number;
 };

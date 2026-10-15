@@ -2,7 +2,7 @@
 # so Render's start command can stay as `gunicorn app:app`.
 
 # One process, because the free plan only has 512 MB of memory and each process loads
-# pandas and statsmodels...
+# pandas and yfinance...
 workers = 1
 
 # ...but several threads, so one slow request (e.g. a forecast, or a slow reply from

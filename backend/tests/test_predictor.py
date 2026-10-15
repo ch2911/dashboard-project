@@ -1,5 +1,6 @@
 import math
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -43,18 +44,48 @@ def test_forecast_dates_skip_weekends(fake_yfinance, last_day, expected):
     assert all(date.weekday() < 5 for date in dates)
 
 
-def test_forecast_prices_are_sensible(fake_yfinance):
+def test_middle_line_stays_at_the_last_close(fake_yfinance):
     prices = make_prices()
     fake_yfinance(prices)
-    last_close = prices["Close"].iloc[-1]
+    last_close = round(prices["Close"].iloc[-1], 2)
 
     forecast = predict_stock_price("AAPL")
 
     assert len(forecast) == 7
-    for point in forecast:
-        assert math.isfinite(point["price"])
-        assert round(point["price"], 2) == point["price"]
-        assert abs(point["price"] - last_close) / last_close < 0.2  # stays near recent prices
+    assert all(point["price"] == last_close for point in forecast)
+
+
+def test_range_widens_with_the_square_root_of_days_ahead(fake_yfinance):
+    prices = make_prices()
+    fake_yfinance(prices)
+    last_close = prices["Close"].iloc[-1]
+    daily_swing = np.diff(np.log(prices["Close"].to_numpy())).std()
+
+    forecast = predict_stock_price("AAPL")
+
+    for days_ahead, point in enumerate(forecast, start=1):
+        spread = predictor.RANGE_Z * daily_swing * math.sqrt(days_ahead)
+        assert point["low"] == pytest.approx(last_close * math.exp(-spread), abs=0.01)
+        assert point["high"] == pytest.approx(last_close * math.exp(spread), abs=0.01)
+        assert point["low"] < point["price"] < point["high"]
+    widths = [point["high"] - point["low"] for point in forecast]
+    assert widths == sorted(widths)
+
+
+def test_jumpier_stocks_get_wider_ranges(fake_yfinance):
+    fake_yfinance(make_prices(seed=1))
+    calm = predict_stock_price("CALM")
+    predictor.clear_cache()
+
+    jumpy_prices = make_prices(seed=1)
+    jumpy_prices["Close"] = 100 * np.exp(3 * np.log(jumpy_prices["Close"] / 100))  # triple the moves
+    fake_yfinance(jumpy_prices)
+    jumpy = predict_stock_price("JUMPY")
+
+    def relative_width(point):
+        return (point["high"] - point["low"]) / point["price"]
+
+    assert relative_width(jumpy[-1]) > 2 * relative_width(calm[-1])
 
 
 def test_no_price_data_gives_empty_forecast(fake_yfinance):
@@ -62,13 +93,26 @@ def test_no_price_data_gives_empty_forecast(fake_yfinance):
     assert predict_stock_price("NOPE") == []
 
 
-def test_model_error_gives_empty_forecast(fake_yfinance, monkeypatch):
-    fake_yfinance(make_prices())
+def test_too_few_prices_gives_empty_forecast(fake_yfinance):
+    fake_yfinance(make_prices(n=10))
+    assert predict_stock_price("NEW") == []
 
-    def broken_arima(*args, **kwargs):
-        raise ValueError("model failed to fit")
 
-    monkeypatch.setattr(predictor, "ARIMA", broken_arima)
+def test_bad_prices_give_empty_forecast(fake_yfinance):
+    # A zero price would make the range infinite, which isn't valid JSON
+    prices = make_prices()
+    prices.iloc[-5, prices.columns.get_loc("Close")] = 0.0
+    fake_yfinance(prices)
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        assert predict_stock_price("AAPL") == []
+
+
+def test_unexpected_error_gives_empty_forecast(monkeypatch):
+    def broken(*args, **kwargs):
+        raise ValueError("unexpected data")
+
+    monkeypatch.setattr(predictor, "get_history", broken)
 
     assert predict_stock_price("AAPL") == []
 

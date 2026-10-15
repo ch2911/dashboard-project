@@ -14,7 +14,7 @@ Built with Next.js (TypeScript) and a Python Flask API.
 
 - **Live prices**: the latest price for each stock, from Yahoo Finance via `yfinance`.
 - **Price charts**: switch between a 3-month daily view and today's prices in 5-minute steps, drawn with Recharts.
-- **Price forecast**: a 7-day forecast from an ARIMA(10,1,0) model fitted to six months of daily closing prices (`statsmodels`), shown on the 3-month view.
+- **Price forecast**: a likely range for the next 7 trading days, shown on the 3-month view. The middle line stays at the latest price, and the shaded band covers 8 in 10 likely outcomes, based on the last six months of daily moves. A backtest (`scripts/backtest_forecast.py`) found that no model tried, including the ARIMA used before, predicted the next week better than the latest price.
 - **News sentiment**: the latest headlines mentioning each stock's ticker or company name, from NewsAPI, each scored positive, neutral or negative with VADER.
 - **Trending news**: a general financial news feed that tags which stocks each headline mentions.
 - **Search**: searches a built-in list of 69 popular stocks first, then falls back to Alpha Vantage's symbol search.
@@ -30,13 +30,13 @@ flowchart LR
     B --> Y[Yahoo Finance]
     B --> N[NewsAPI]
     B --> A[Alpha Vantage]
-    B --> M[ARIMA forecast and VADER sentiment]
+    B --> M[Forecast range and VADER sentiment]
 ```
 
 | Part | Built with |
 | --- | --- |
 | Frontend | Next.js 14, React, TypeScript, Tailwind CSS, Recharts |
-| Backend | Python, Flask, pandas, statsmodels, vaderSentiment, yfinance |
+| Backend | Python, Flask, pandas, vaderSentiment, yfinance |
 | Data and accounts | Supabase (Postgres and Auth), NewsAPI, Alpha Vantage |
 | Testing and deployment | pytest, Vitest, GitHub Actions, GitHub Pages, Render |
 
@@ -50,7 +50,7 @@ dashboard-project/
 │   │   ├── market_data.py   # Yahoo Finance prices, with retries
 │   │   ├── news_fetcher.py  # headlines from NewsAPI
 │   │   ├── price_alerts.py  # finds big daily moves in pinned stocks and emails them
-│   │   ├── predictor.py     # ARIMA price forecast
+│   │   ├── predictor.py     # 7-day forecast range
 │   │   └── sentiment.py     # VADER sentiment scores
 │   ├── tests/               # pytest suite (external APIs are faked)
 │   ├── send_price_alerts.py # emails users about big daily moves (run by GitHub Actions)
@@ -122,7 +122,7 @@ Open http://localhost:3000, sign up with an email and password, click the link i
 | --- | --- |
 | `GET /price?stock=AAPL` | Latest price and percentage change |
 | `GET /price_history?stock=AAPL&range=daily` | Closing prices: `daily` gives the last 3 months, `intraday` gives today in 5-minute steps |
-| `GET /predict?stock=AAPL` | 7-day ARIMA forecast |
+| `GET /predict?stock=AAPL` | 7-day forecast: the middle price and a likely `low` to `high` range for each trading day |
 | `GET /sentiment?stock=AAPL` | Latest headlines about the stock, with sentiment scores |
 | `GET /trending_news` | General financial headlines, with sentiment and the stocks they mention |
 | `GET /search_stock?q=apple` | Up to 10 matching stocks |
@@ -225,6 +225,6 @@ A second workflow, `.github/workflows/smoke-test.yml`, runs the smoke test again
 
 ## Notes
 
-- The forecast is a simple statistical model built for learning and demonstration. It isn't financial advice.
+- The forecast shows how far prices usually move, not where they will go. It isn't financial advice.
 - Yahoo Finance data comes from an unofficial API, and the free NewsAPI and Alpha Vantage plans limit daily requests, so the occasional request can fail. To stay within the limits, the API reuses prices for between 1 and 15 minutes, forecasts for an hour, headlines for 15 minutes and Alpha Vantage search results for a day. When Yahoo Finance refuses a request ("Too Many Requests"), the API waits a few seconds and tries again.
 - If a request fails, that part of the page says the data isn't available rather than loading forever.

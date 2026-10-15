@@ -224,7 +224,10 @@ export default function Dashboard() {
                     </ResponsiveContainer>
                 </div>
                 {timeRange === 'daily' && !chartLoading && pinned.length > 0 && (
-                    <p className="text-sm text-sky-200 mt-2">Dashed lines show each stock&apos;s 7-day forecast.</p>
+                    <p className="text-sm text-sky-200 mt-2">
+                        Dashed lines carry each stock&apos;s latest price 7 trading days forward. Open a stock to
+                        see how far it&apos;s likely to move.
+                    </p>
                 )}
                 {chartLoading && <p className="text-sm text-sky-200 mt-2">Loading chart...</p>}
                 {chartMissing.length > 0 && (

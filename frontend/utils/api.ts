@@ -18,6 +18,12 @@ export type PricePoint = {
     price: number;
 };
 
+// A forecast day: the middle price, plus the likely range (8 outcomes in 10) when the API sends one
+export type ForecastPoint = PricePoint & {
+    low?: number;
+    high?: number;
+};
+
 export type SentimentResult = {
     title: string;
     time: string;
@@ -69,8 +75,8 @@ export async function fetchSentiment(stock: string = "TSLA"): Promise<SentimentR
     return (await getList<SentimentResult>(`/sentiment?stock=${encodeURIComponent(stock)}`)) ?? [];
 }
 
-export async function fetchPrediction(stock: string = "TSLA"): Promise<PricePoint[]> {
-    return (await getList<PricePoint>(`/predict?stock=${encodeURIComponent(stock)}`)) ?? [];
+export async function fetchPrediction(stock: string = "TSLA"): Promise<ForecastPoint[]> {
+    return (await getList<ForecastPoint>(`/predict?stock=${encodeURIComponent(stock)}`)) ?? [];
 }
 
 export async function searchStocks(query: string): Promise<StockSuggestion[]> {

@@ -41,7 +41,7 @@ type ChartDataPoint = {
 };
 
 export default function Dashboard() {
-    const { pinned, loading: pinnedLoading } = usePinnedStocks();
+    const { pinned, loading: pinnedLoading, error: pinnedError, isGuest } = usePinnedStocks();
     const colors = useSeriesColors(pinned);
 
     const [timeRange, setTimeRange] = useState<ChartRange>('daily');
@@ -151,7 +151,14 @@ export default function Dashboard() {
 
     return (
         <div>
-            <h1 className="text-2xl sm:text-3xl font-bold mb-6">📊 My Pinned Stocks</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-6">{isGuest ? "📊 Popular Stocks" : "📊 My Pinned Stocks"}</h1>
+            {isGuest && (
+                <p className="bg-white/10 rounded-xl p-3 mb-6 text-sky-100">
+                    You&apos;re trying the dashboard without an account, so it shows a few popular stocks. Search for
+                    any stock to see its prices, forecast and news.{" "}
+                    <Link href="/login" className="text-sky-300 underline hover:text-white">Sign up</Link> to pin your own.
+                </p>
+            )}
             <SlowServerNotice active={stillLoading} />
 
             <section className="bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-md mb-6">
@@ -226,8 +233,11 @@ export default function Dashboard() {
             </section>
 
             <section className="bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-md mb-6">
-                <h2 className="text-xl font-semibold mb-3">Your Favorites</h2>
-                {!pinnedLoading && pinned.length === 0 && (
+                <h2 className="text-xl font-semibold mb-3">{isGuest ? "Popular Stocks" : "Your Favorites"}</h2>
+                {pinnedError && (
+                    <p className="text-red-300">Couldn&apos;t load your pinned stocks. Please refresh the page to try again.</p>
+                )}
+                {!pinnedLoading && !pinnedError && pinned.length === 0 && (
                     <p className="text-sky-200">You haven&apos;t pinned any stocks yet. Search for one above and press Pin.</p>
                 )}
                 <ul className="space-y-3">
@@ -268,7 +278,7 @@ export default function Dashboard() {
                 <h2 className="text-xl font-semibold mb-3">News Sentiment</h2>
                 {sentiments.length === 0 && sentimentsPending > 0 && <p className="text-sky-200">Loading headlines...</p>}
                 {sentiments.length === 0 && sentimentsPending === 0 && pinned.length > 0 && (
-                    <p className="text-sky-200">No recent headlines found for your pinned stocks.</p>
+                    <p className="text-sky-200">No recent headlines found for {isGuest ? "these" : "your pinned"} stocks.</p>
                 )}
                 <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
                     {[...sentiments]

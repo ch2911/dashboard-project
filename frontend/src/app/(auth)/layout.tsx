@@ -6,10 +6,14 @@ import Link from "next/link";
 import { searchStocks, type StockSuggestion } from "../../../utils/api";
 import { stockPageHref } from "../../../utils/stockLinks";
 import { supabase} from "../../../lib/supabaseClient";
+import { useAuth } from "../../../lib/useAuth";
 
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
+    const { user, loading } = useAuth();
+    // Visitors trying the site without an account
+    const isGuest = !loading && !user;
     const [query, setQuery] = useState("");
     const [suggestions, setSuggestions] = useState<StockSuggestion[]>([]);
 
@@ -48,9 +52,12 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
                             News
                         </Link>
 
-                        <Link href="/settings" className="text-sky-200 hover:text-white transition">
-                            Settings
-                        </Link>
+                        {/* Settings are all about the account, so only signed-in users get them */}
+                        {!isGuest && (
+                            <Link href="/settings" className="text-sky-200 hover:text-white transition">
+                                Settings
+                            </Link>
+                        )}
                     </nav>
 
                     {/* Search bar */}
@@ -81,15 +88,24 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
                         )}
                     </div>
 
-                    <button
-                        onClick={async () => {
-                            await supabase.auth.signOut();
-                            router.push("/login");
-                        }}
-                        className="order-2 md:order-4 ml-auto md:ml-0 bg-red-600 px-3 py-1 rounded text-white hover:bg-red-700"
-                    >
-                        Logout
-                    </button>
+                    {isGuest ? (
+                        <Link
+                            href="/login"
+                            className="order-2 md:order-4 ml-auto md:ml-0 bg-sky-500 px-3 py-1 rounded text-white hover:bg-sky-400"
+                        >
+                            Sign up
+                        </Link>
+                    ) : (
+                        <button
+                            onClick={async () => {
+                                await supabase.auth.signOut();
+                                router.push("/login");
+                            }}
+                            className="order-2 md:order-4 ml-auto md:ml-0 bg-red-600 px-3 py-1 rounded text-white hover:bg-red-700"
+                        >
+                            Logout
+                        </button>
+                    )}
                 </header>
 
                 <main className="mt-6">{children}</main>

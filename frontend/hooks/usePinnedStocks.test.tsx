@@ -4,7 +4,7 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../lib/useAuth";
 import { queueQueries } from "../test/fakes";
-import { usePinnedStocks } from "./usePinnedStocks";
+import { GUEST_STOCKS, usePinnedStocks } from "./usePinnedStocks";
 
 vi.mock("../lib/supabaseClient", () => ({ supabase: { from: vi.fn() } }));
 vi.mock("../lib/useAuth", () => ({ useAuth: vi.fn() }));
@@ -12,8 +12,8 @@ vi.mock("../lib/useAuth", () => ({ useAuth: vi.fn() }));
 const from = vi.mocked(supabase.from);
 const USER = { id: "user-1" };
 
-function signedIn(user: { id: string } | null) {
-    vi.mocked(useAuth).mockReturnValue({ user, loading: false } as never);
+function signedIn(user: { id: string } | null, loading = false) {
+    vi.mocked(useAuth).mockReturnValue({ user, loading } as never);
 }
 
 async function loaded() {
@@ -38,21 +38,54 @@ describe("usePinnedStocks", () => {
         const result = await loaded();
 
         expect(result.current.pinned).toEqual(["AAPL", "NVDA"]);
+        expect(result.current.error).toBe(false);
+        expect(result.current.isGuest).toBe(false);
         expect(from).toHaveBeenCalledWith("favorites");
         expect(query.eq).toHaveBeenCalledWith("user_id", "user-1");
     });
 
-    it("has nothing pinned when nobody is signed in", async () => {
+    it("shows visitors without an account some popular stocks", async () => {
         signedIn(null);
         const result = await loaded();
+        expect(result.current.pinned).toEqual(GUEST_STOCKS);
+        expect(result.current.isGuest).toBe(true);
+        expect(result.current.error).toBe(false);
+        expect(from).not.toHaveBeenCalled();
+    });
+
+    it("can't pin or unpin anything for a visitor without an account", async () => {
+        signedIn(null);
+        const result = await loaded();
+        await act(() => result.current.pinStock("AMD"));
+        await act(() => result.current.unpinStock("AAPL"));
+        expect(result.current.pinned).toEqual(GUEST_STOCKS);
+        expect(from).not.toHaveBeenCalled();
+    });
+
+    it("waits to find out who's signed in before showing anything", () => {
+        signedIn(null, true);
+        const { result } = renderHook(() => usePinnedStocks());
+        expect(result.current.loading).toBe(true);
+        expect(result.current.isGuest).toBe(false);
         expect(result.current.pinned).toEqual([]);
         expect(from).not.toHaveBeenCalled();
     });
 
-    it("shows nothing pinned if loading fails", async () => {
+    it("reports an error, rather than nothing pinned, if loading fails", async () => {
         queueQueries(from, { data: null, error: { message: "down" } });
         const result = await loaded();
         expect(result.current.pinned).toEqual([]);
+        expect(result.current.error).toBe(true);
+        expect(result.current.isGuest).toBe(false);
+    });
+
+    it("reports an error if Supabase can't be reached at all", async () => {
+        from.mockImplementation(() => {
+            throw new TypeError("Failed to fetch");
+        });
+        const result = await loaded();
+        expect(result.current.pinned).toEqual([]);
+        expect(result.current.error).toBe(true);
     });
 
     it("pins a stock for the user, without listing it twice", async () => {

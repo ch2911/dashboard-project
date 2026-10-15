@@ -42,6 +42,10 @@ EWMA_DECAY = 0.94  # each older day counts 6% less (the RiskMetrics daily settin
 ORIGIN_STEP = 5  # forecast from every 5th trading day in the test period
 RETRAIN_STEP = 126  # retrain the tree model about every 6 months
 WARMUP = 60  # days of history the longest feature needs
+TREE_SETTINGS = dict(
+    max_iter=200, learning_rate=0.05, max_leaf_nodes=15, min_samples_leaf=200,
+    l2_regularization=1.0, random_state=0,
+)
 
 STOCKS_FILE = Path(__file__).resolve().parent.parent / "backend" / "stocks.json"
 
@@ -215,10 +219,7 @@ def tree_models(train_x, train_y):
     for h in HORIZONS:
         known = train_y[h].notna()
         for q in QUANTILES:
-            model = HistGradientBoostingRegressor(
-                loss="quantile", quantile=q, max_iter=200, learning_rate=0.05,
-                max_leaf_nodes=15, min_samples_leaf=200, l2_regularization=1.0, random_state=0,
-            )
+            model = HistGradientBoostingRegressor(loss="quantile", quantile=q, **TREE_SETTINGS)
             model.fit(train_x[known], train_y.loc[known, h])
             models[h, q] = model
     return models
@@ -374,6 +375,39 @@ def report(scored, close, origins, arima_failures, seconds):
     return "\n".join(lines) + "\n"
 
 
+def run_backtest(close, volume, vix, test_days, workers=None):
+    """Forecasts from every model at each origin day in the last `test_days`, scored.
+
+    workers=1 runs everything in this process (used by the tests).
+    """
+    first_origin = max(len(close) - test_days, WARMUP + ARIMA_WINDOW + 2 * RETRAIN_STEP)
+    origins = list(range(first_origin, len(close) - max(HORIZONS), ORIGIN_STEP))
+    if not origins:
+        sys.exit("Not enough price history to backtest: download more years")
+    stocks = [t for t in close.columns if t != "SPY"]
+
+    rows = []
+    jobs = [(t, close[t].to_numpy(), origins) for t in stocks]
+    arima_failures = 0
+    if workers == 1:
+        results = list(map(_forecast_one_stock, jobs))
+    else:
+        with ProcessPoolExecutor(workers or os.cpu_count(), initializer=_one_thread_per_process) as pool:
+            results = list(pool.map(_forecast_one_stock, jobs))
+    for stock_rows, failures in results:
+        rows += stock_rows
+        arima_failures += failures
+
+    features, targets = build_features(close, volume, vix)
+    rows += tree_forecasts(features, targets, close.index, origins)
+
+    forecasts = pd.DataFrame(rows, columns=["pos", "ticker", "h", "model", "low", "mid", "high"])
+    # Score each model on the same forecasts only
+    counts = forecasts.groupby(["pos", "ticker", "h"])["model"].transform("count")
+    forecasts = forecasts[counts == len(MODELS)]
+    return score(forecasts, close), origins, arima_failures
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--years", type=int, default=5, help="years of prices to download")
@@ -388,32 +422,8 @@ def main():
     else:
         tickers = [s["symbol"] for s in json.loads(STOCKS_FILE.read_text())]
         close, volume, vix = download_prices(tickers, args.years)
-    stocks = [t for t in close.columns if t != "SPY"]
-    print(f"Prices for {len(stocks)} stocks over {len(close)} days", file=sys.stderr)
-
-    n_test = int(args.test_years * 252)
-    first_origin = max(len(close) - n_test, WARMUP + ARIMA_WINDOW + 2 * RETRAIN_STEP)
-    origins = list(range(first_origin, len(close) - max(HORIZONS), ORIGIN_STEP))
-
-    rows = []
-    jobs = [(t, close[t].to_numpy(), origins) for t in stocks]
-    arima_failures = 0
-    with ProcessPoolExecutor(max_workers=os.cpu_count(), initializer=_one_thread_per_process) as pool:
-        for stock_rows, failures in pool.map(_forecast_one_stock, jobs):
-            rows += stock_rows
-            arima_failures += failures
-    print(f"ARIMA and no-change done after {time.time() - started:.0f}s", file=sys.stderr)
-
-    features, targets = build_features(close, volume, vix)
-    rows += tree_forecasts(features, targets, close.index, origins)
-    print(f"Tree model done after {time.time() - started:.0f}s", file=sys.stderr)
-
-    forecasts = pd.DataFrame(rows, columns=["pos", "ticker", "h", "model", "low", "mid", "high"])
-    # Score each model on the same forecasts only
-    keys = ["pos", "ticker", "h"]
-    counts = forecasts.groupby(keys)["model"].transform("count")
-    forecasts = forecasts[counts == len(MODELS)]
-    scored = score(forecasts, close)
+    print(f"Prices for {len(close.columns) - 1} stocks over {len(close)} days", file=sys.stderr)
+    scored, origins, arima_failures = run_backtest(close, volume, vix, int(args.test_years * 252))
     text = report(scored, close, origins, arima_failures, time.time() - started)
     print(text)
     if args.out:

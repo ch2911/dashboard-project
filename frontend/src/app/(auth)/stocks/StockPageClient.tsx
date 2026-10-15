@@ -15,6 +15,8 @@ import { useSeriesColors } from "../../../../hooks/useSeriesColors";
 import { seriesColor } from "../../../../utils/chartColors";
 import SlowServerNotice from "../../../../components/SlowServerNotice";
 import { formatPriceTick } from "../../../../utils/chartFormat";
+import MarketSessionNote from "../../../../components/MarketSessionNote";
+import { describeSession } from "../../../../utils/marketSession";
 
 import {
     LineChart,
@@ -81,7 +83,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
             const formatOptions: Intl.DateTimeFormatOptions =
                 timeRange === 'daily'
                     ? { day: '2-digit', month: 'short' }
-                    : { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" };
+                    : { hour: "2-digit", minute: "2-digit" }; // the viewer's own time zone
             const timeLabel = new Intl.DateTimeFormat("en-GB", formatOptions).format(d);
             return { name: timeLabel, price: pt.price };
         });
@@ -102,6 +104,8 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
 
         return [...historicalPoints, ...predictionPoints];
     })();
+
+    const session = timeRange === 'intraday' && history ? describeSession(ticker, history) : null;
 
     const stillLoading = price === undefined || sentiment === undefined || history === undefined;
 
@@ -184,6 +188,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>
+                        {session && <MarketSessionNote sessions={[session]} />}
                         {timeRange === 'daily' && !!prediction?.length && (
                             <p className="text-sm text-sky-200 mt-2">The dashed line shows the 7-day forecast.</p>
                         )}

@@ -17,7 +17,7 @@ def test_price_compares_latest_price_with_previous_close(client, fake_yfinance):
 
     data = client.get("/price?stock=AAPL").get_json()
 
-    assert data == {"ticker": "AAPL", "price": 210.0, "change": 5.0}
+    assert data == {"ticker": "AAPL", "name": "Apple Inc.", "price": 210.0, "change": 5.0}
     assert calls == [{"ticker": "AAPL", "period": "5d", "interval": "1d"}]
 
 
@@ -30,13 +30,40 @@ def test_price_ignores_missing_latest_close(client, fake_yfinance):
 
     data = client.get("/price?stock=AAPL").get_json()
 
-    assert data == {"ticker": "AAPL", "price": 100.0, "change": 25.0}
+    assert data == {"ticker": "AAPL", "name": "Apple Inc.", "price": 100.0, "change": 25.0}
 
 
 def test_price_with_only_one_day_of_data_has_no_change(client, fake_yfinance):
     fake_yfinance(make_prices(n=1))
     data = client.get("/price?stock=NEW").get_json()
     assert data["change"] == 0.0
+
+
+def test_price_uses_the_name_from_our_stock_list(client, fake_yfinance):
+    fake_yfinance(make_prices(n=5), metadata={"longName": "Apple Inc. (Yahoo)"})
+    data = client.get("/price?stock=AAPL").get_json()
+    assert data["name"] == "Apple Inc."
+
+
+def test_price_falls_back_to_the_name_yahoo_sends(client, fake_yfinance):
+    fake_yfinance(make_prices(n=5), metadata={"longName": "Rivian Automotive, Inc.", "shortName": "Rivian"})
+    data = client.get("/price?stock=RIVN").get_json()
+    assert data["name"] == "Rivian Automotive, Inc."
+
+
+def test_price_name_is_null_when_nobody_knows_it(client, fake_yfinance):
+    fake_yfinance(make_prices(n=5))
+    data = client.get("/price?stock=RIVN").get_json()
+    assert data["name"] is None
+
+
+def test_price_name_survives_a_cached_price(client, fake_yfinance, clock):
+    calls = fake_yfinance(make_prices(n=5), metadata={"shortName": "Rivian"})
+    client.get("/price?stock=RIVN")
+    clock.advance(30)  # the price is reused, so Yahoo isn't asked again
+    data = client.get("/price?stock=RIVN").get_json()
+    assert len(calls) == 1
+    assert data["name"] == "Rivian"
 
 
 def test_price_for_unknown_ticker_returns_404(client, fake_yfinance):

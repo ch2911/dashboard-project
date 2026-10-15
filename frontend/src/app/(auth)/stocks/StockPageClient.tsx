@@ -104,13 +104,16 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
     return (
         <div>
             <div className="flex justify-between items-center gap-4 mb-6">
-                <h1 className="text-2xl sm:text-3xl font-bold break-all">{ticker}</h1>
+                <div className="min-w-0">
+                    <h1 className="text-2xl sm:text-3xl font-bold break-all">{ticker}</h1>
+                    {price?.name && <p className="text-sky-200 sm:text-lg break-words">{price.name}</p>}
+                </div>
                 {isPinned ? (
-                    <button onClick={() => unpinStock(ticker)} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg shadow-md">
+                    <button onClick={() => unpinStock(ticker)} className="shrink-0 bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg shadow-md">
                         Unpin
                     </button>
                 ) : (
-                    <button onClick={() => pinStock(ticker)} className="bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg shadow-md">
+                    <button onClick={() => pinStock(ticker)} className="shrink-0 bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg shadow-md">
                         Pin
                     </button>
                 )}
@@ -125,7 +128,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                 {price === null && <p className="text-sky-200">The price isn&apos;t available right now.</p>}
                 {price && (
                     <div>
-                        <p className="text-sky-200">Company: {ticker}</p>
+                        <p className="text-sky-200">Company: {price.name || ticker}</p>
                         <p>
                             Price:{" "}
                             <span className="font-bold text-white">${price.price.toFixed(2)}</span>{" "}

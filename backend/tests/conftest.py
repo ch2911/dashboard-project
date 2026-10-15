@@ -62,11 +62,14 @@ def client():
 
 @pytest.fixture
 def fake_yfinance(monkeypatch):
-    """Make yfinance return a given DataFrame. Returns the list of history() calls made."""
+    """Make yfinance return a given DataFrame (and optional chart metadata, such as the company's
+    name). Returns the list of history() calls made."""
     calls = []
 
-    def install(frame):
+    def install(frame, metadata=None):
         class FakeTicker:
+            history_metadata = metadata or {}
+
             def __init__(self, ticker):
                 self.ticker = ticker
 

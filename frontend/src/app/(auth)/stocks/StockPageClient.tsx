@@ -6,6 +6,7 @@ import {
     fetchPrice,
     fetchPriceHistory,
     fetchPrediction,
+    type ForecastPoint,
     type PricePoint,
     type SentimentResult,
     type StockPrice,
@@ -14,12 +15,13 @@ import { usePinnedStocks } from "../../../../hooks/usePinnedStocks";
 import { useSeriesColors } from "../../../../hooks/useSeriesColors";
 import { seriesColor } from "../../../../utils/chartColors";
 import SlowServerNotice from "../../../../components/SlowServerNotice";
-import { formatPriceTick } from "../../../../utils/chartFormat";
+import { formatPriceTick, formatTooltipPrice } from "../../../../utils/chartFormat";
 import MarketSessionNote from "../../../../components/MarketSessionNote";
 import { describeSession } from "../../../../utils/marketSession";
 
 import {
-    LineChart,
+    Area,
+    ComposedChart,
     Line,
     XAxis,
     YAxis,
@@ -32,6 +34,8 @@ type ChartDataPoint = {
     name: string;
     price?: number;
     prediction?: number;
+    // The likely range, drawn as a shaded band: [low, high]
+    range?: [number, number];
 };
 
 const sectionClass = "bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-md mb-6";
@@ -48,7 +52,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
     const [price, setPrice] = useState<StockPrice | null | undefined>(undefined);
     const [sentiment, setSentiment] = useState<SentimentResult[] | undefined>(undefined);
     const [history, setHistory] = useState<PricePoint[] | undefined>(undefined);
-    const [prediction, setPrediction] = useState<PricePoint[] | undefined>(undefined);
+    const [prediction, setPrediction] = useState<ForecastPoint[] | undefined>(undefined);
 
     // Price and headlines don't depend on the chart range. Every request updates its own
     // section as soon as it finishes, so a slow or failed one doesn't hold up the others.
@@ -90,16 +94,21 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
 
         if (!prediction?.length) return historicalPoints;
 
-        // Start the forecast line from the last real price so the two lines join up
+        // Start the forecast line and range from the last real price so they join up with it
         const lastHistoryPoint = historicalPoints[historicalPoints.length - 1];
         lastHistoryPoint.prediction = lastHistoryPoint.price;
+        if (lastHistoryPoint.price !== undefined) {
+            lastHistoryPoint.range = [lastHistoryPoint.price, lastHistoryPoint.price];
+        }
 
-        const predictionPoints = prediction.map((pt) => {
+        const predictionPoints = prediction.map((pt): ChartDataPoint => {
             const d = new Date(pt.time);
             const timeLabel = new Intl.DateTimeFormat("en-GB", {
                 day: '2-digit', month: 'short'
             }).format(d);
-            return { name: timeLabel, prediction: pt.price };
+            const range: [number, number] | undefined =
+                pt.low !== undefined && pt.high !== undefined ? [pt.low, pt.high] : undefined;
+            return { name: timeLabel, prediction: pt.price, range };
         });
 
         return [...historicalPoints, ...predictionPoints];
@@ -177,20 +186,26 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                     <>
                         <div className="w-full h-80">
                             <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={combinedChartData}>
+                                <ComposedChart data={combinedChartData}>
                                     <XAxis dataKey="name" stroke="#bae6fd" />
                                     <YAxis stroke="#bae6fd" domain={['dataMin - 1', 'dataMax + 1']} tickFormatter={formatPriceTick} />
-                                    <Tooltip />
+                                    <Tooltip formatter={formatTooltipPrice} />
                                     <Legend />
+                                    {/* The forecast range and line only render when they have data. The band is
+                                        drawn first so the lines sit on top of it. */}
+                                    <Area name="Likely range" type="monotone" dataKey="range" stroke="none" fill={lineColor} fillOpacity={0.2} connectNulls />
                                     <Line name="Historical Price" type="monotone" dataKey="price" stroke={lineColor} strokeWidth={2} dot={false} connectNulls />
-                                    {/* The prediction line only renders when it has data */}
-                                    <Line name="Predicted Price" type="monotone" dataKey="prediction" stroke={lineColor} strokeWidth={2} strokeDasharray="4 4" dot={false} connectNulls />
-                                </LineChart>
+                                    <Line name="Today's price, carried forward" type="monotone" dataKey="prediction" stroke={lineColor} strokeWidth={2} strokeDasharray="4 4" dot={false} connectNulls />
+                                </ComposedChart>
                             </ResponsiveContainer>
                         </div>
                         {session && <MarketSessionNote sessions={[session]} />}
                         {timeRange === 'daily' && !!prediction?.length && (
-                            <p className="text-sm text-sky-200 mt-2">The dashed line shows the 7-day forecast.</p>
+                            <p className="text-sm text-sky-200 mt-2">
+                                The shaded band is where the price is likely to be over the next 7 trading days
+                                (about 8 times in 10, based on the last six months&apos; moves). The dashed line is
+                                today&apos;s price: in tests on past prices, no model predicted the direction better.
+                            </p>
                         )}
                         {timeRange === 'daily' && prediction === undefined && (
                             <p className="text-sm text-sky-200 mt-2">Loading the 7-day forecast...</p>

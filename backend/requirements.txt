@@ -37,6 +37,5 @@ websockets==15.0.1
 Werkzeug==3.1.9
 yfinance==0.2.65
 scikit-learn
-statsmodels==0.15.0
 python-dotenv
 gunicorn==23.0.0

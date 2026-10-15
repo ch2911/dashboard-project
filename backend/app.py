@@ -2,8 +2,8 @@ import os
 
 # Render's free plan gives this app a fraction of one CPU, but numpy's maths libraries start
 # one thread per core on the host machine. Those threads then fight over that small share and
-# make the forecast take over 30 seconds. One thread each avoids that. This has to run before
-# numpy is imported (yfinance and statsmodels import it).
+# slow every request down. One thread each avoids that. This has to run before
+# numpy is imported (yfinance and pandas import it).
 for _thread_var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_thread_var, "1")
 

@@ -1,3 +1,5 @@
 -r requirements.txt
+# Only for scripts/backtest_forecast.py, which compares against the ARIMA the dashboard used before
+statsmodels==0.15.0
 pytest==9.0.3
 pytest-cov==6.0.0

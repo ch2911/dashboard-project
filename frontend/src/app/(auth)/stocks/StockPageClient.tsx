@@ -18,6 +18,8 @@ import SlowServerNotice from "../../../../components/SlowServerNotice";
 import { formatPriceTick, formatTooltipPrice } from "../../../../utils/chartFormat";
 import MarketSessionNote from "../../../../components/MarketSessionNote";
 import { describeSession } from "../../../../utils/marketSession";
+import { formatTimeLabel, showsForecast, type ChartRange } from "../../../../utils/chartRanges";
+import ChartRangePicker from "../../../../components/ChartRangePicker";
 
 import {
     Area,
@@ -46,7 +48,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
     // Both lines use the stock's colour from the home page chart, so a stock looks the same on both pages
     const lineColor = seriesColor(useSeriesColors(pinned), ticker);
 
-    const [timeRange, setTimeRange] = useState<'daily' | 'intraday'>('daily');
+    const [timeRange, setTimeRange] = useState<ChartRange>('daily');
 
     // Each value is undefined while loading. Once loaded, null or [] means it couldn't be fetched.
     const [price, setPrice] = useState<StockPrice | null | undefined>(undefined);
@@ -70,8 +72,8 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
         setHistory(undefined);
         setPrediction(undefined);
         fetchPriceHistory(ticker, timeRange).then((h) => { if (!cancelled) setHistory(h); });
-        // The forecast is only shown on the 3-month view
-        if (timeRange === 'daily') {
+        // The forecast is only shown on the views with one price per day
+        if (showsForecast(timeRange)) {
             fetchPrediction(ticker).then((p) => { if (!cancelled) setPrediction(p); });
         } else {
             setPrediction([]);
@@ -82,15 +84,9 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
     const combinedChartData = (() => {
         if (!history?.length) return [];
 
-        const historicalPoints: ChartDataPoint[] = history.map((pt) => {
-            const d = new Date(pt.time);
-            const formatOptions: Intl.DateTimeFormatOptions =
-                timeRange === 'daily'
-                    ? { day: '2-digit', month: 'short' }
-                    : { hour: "2-digit", minute: "2-digit" }; // the viewer's own time zone
-            const timeLabel = new Intl.DateTimeFormat("en-GB", formatOptions).format(d);
-            return { name: timeLabel, price: pt.price };
-        });
+        const historicalPoints: ChartDataPoint[] = history.map((pt) => (
+            { name: formatTimeLabel(pt.time, timeRange), price: pt.price }
+        ));
 
         if (!prediction?.length) return historicalPoints;
 
@@ -102,10 +98,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
         }
 
         const predictionPoints = prediction.map((pt): ChartDataPoint => {
-            const d = new Date(pt.time);
-            const timeLabel = new Intl.DateTimeFormat("en-GB", {
-                day: '2-digit', month: 'short'
-            }).format(d);
+            const timeLabel = formatTimeLabel(pt.time, timeRange);
             const range: [number, number] | undefined =
                 pt.low !== undefined && pt.high !== undefined ? [pt.low, pt.high] : undefined;
             return { name: timeLabel, prediction: pt.price, range };
@@ -161,20 +154,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
             <section className={sectionClass}>
                 <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
                     <h2 className="text-xl font-semibold">Price Chart</h2>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => setTimeRange('daily')}
-                            className={`px-3 py-1 text-sm rounded-md ${timeRange === 'daily' ? 'bg-sky-500' : 'bg-white/10 hover:bg-white/20'}`}
-                        >
-                            Daily (3mo)
-                        </button>
-                        <button
-                            onClick={() => setTimeRange('intraday')}
-                            className={`px-3 py-1 text-sm rounded-md ${timeRange === 'intraday' ? 'bg-sky-500' : 'bg-white/10 hover:bg-white/20'}`}
-                        >
-                            Intraday (1d)
-                        </button>
-                    </div>
+                    <ChartRangePicker value={timeRange} onChange={setTimeRange} />
                 </div>
 
                 {history === undefined && <p className="text-sky-200">Loading chart...</p>}
@@ -203,17 +183,17 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                             </ResponsiveContainer>
                         </div>
                         {session && <MarketSessionNote sessions={[session]} />}
-                        {timeRange === 'daily' && !!prediction?.length && (
+                        {showsForecast(timeRange) && !!prediction?.length && (
                             <p className="text-sm text-sky-200 mt-2">
                                 The shaded band is where the price is likely to be over the next 7 trading days
                                 (about 8 times in 10, based on the last six months&apos; moves). The dashed line is
                                 today&apos;s price: in tests on past prices, no model predicted the direction better.
                             </p>
                         )}
-                        {timeRange === 'daily' && prediction === undefined && (
+                        {showsForecast(timeRange) && prediction === undefined && (
                             <p className="text-sm text-sky-200 mt-2">Loading the 7-day forecast...</p>
                         )}
-                        {timeRange === 'daily' && prediction?.length === 0 && (
+                        {showsForecast(timeRange) && prediction?.length === 0 && (
                             <p className="text-sm text-sky-200 mt-2">The 7-day forecast isn&apos;t available right now.</p>
                         )}
                     </>

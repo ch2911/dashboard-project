@@ -13,8 +13,8 @@ Built with Next.js (TypeScript) and a Python Flask API.
 ## Features
 
 - **Live prices**: the latest price for each stock, from Yahoo Finance via `yfinance`.
-- **Price charts**: switch between a 3-month daily view and today's prices in 5-minute steps, drawn with Recharts.
-- **Price forecast**: a likely range for the next 7 trading days, shown on the 3-month view. The middle line stays at the latest price, and the shaded band covers 8 in 10 likely outcomes, based on the last six months of daily moves. A backtest (`scripts/backtest_forecast.py`) found that no model tried, including the ARIMA used before, predicted the next week better than the latest price.
+- **Price charts**: every chart, on the dashboard and on each stock's page, switches between 1 day (today in 5-minute steps), 1 week (the last 5 trading days in 30-minute steps), 1 month and 3 months (daily closing prices), drawn with Recharts.
+- **Price forecast**: a likely range for the next 7 trading days, shown on the 1-month and 3-month views. The middle line stays at the latest price, and the shaded band covers 8 in 10 likely outcomes, based on the last six months of daily moves. A backtest (`scripts/backtest_forecast.py`) found that no model tried, including the ARIMA used before, predicted the next week better than the latest price.
 - **News sentiment**: the latest headlines mentioning each stock's ticker or company name, from NewsAPI, each scored positive, neutral or negative with VADER.
 - **Trending news**: a general financial news feed that tags which stocks each headline mentions.
 - **Search**: searches a built-in list of 69 popular stocks first, then falls back to Alpha Vantage's symbol search.
@@ -121,7 +121,7 @@ Open http://localhost:3000, sign up with an email and password, click the link i
 | Endpoint | Returns |
 | --- | --- |
 | `GET /price?stock=AAPL` | Latest price and percentage change |
-| `GET /price_history?stock=AAPL&range=daily` | Closing prices: `daily` gives the last 3 months, `intraday` gives today in 5-minute steps |
+| `GET /price_history?stock=AAPL&range=daily` | Closing prices: `intraday` gives today in 5-minute steps, `week` the last 5 trading days in 30-minute steps, `month` the last month of daily closes, and `daily` (the default) the last 3 months |
 | `GET /predict?stock=AAPL` | 7-day forecast: the middle price and a likely `low` to `high` range for each trading day |
 | `GET /sentiment?stock=AAPL` | Latest headlines about the stock, with sentiment scores |
 | `GET /trending_news` | General financial headlines, with sentiment and the stocks they mention |

@@ -20,6 +20,8 @@ import { useSeriesColors } from "../../../../hooks/useSeriesColors";
 import PortfolioTooltip, { type TooltipRow } from "../../../../components/PortfolioTooltip";
 import MarketSessionNote from "../../../../components/MarketSessionNote";
 import { describeSession, type MarketSession } from "../../../../utils/marketSession";
+import { formatTimeLabel, showsForecast, type ChartRange } from "../../../../utils/chartRanges";
+import ChartRangePicker from "../../../../components/ChartRangePicker";
 
 import {
     LineChart,
@@ -33,8 +35,8 @@ import {
 
 type ChartDataPoint = {
     name: string;
-    /** For intraday points, when the price was taken, to keep them in order */
-    at?: number;
+    /** When the price was taken, to keep the points in order */
+    at: number;
     [key: string]: string | number | undefined;
 };
 
@@ -42,7 +44,7 @@ export default function Dashboard() {
     const { pinned, loading: pinnedLoading } = usePinnedStocks();
     const colors = useSeriesColors(pinned);
 
-    const [timeRange, setTimeRange] = useState<'daily' | 'intraday'>('daily');
+    const [timeRange, setTimeRange] = useState<ChartRange>('daily');
 
     // For each pinned ticker: missing while loading. Once loaded, null or [] means it couldn't be fetched.
     const [prices, setPrices] = useState<Record<string, StockPrice | null>>({});
@@ -88,8 +90,8 @@ export default function Dashboard() {
             fetchPriceHistory(ticker, timeRange).then((history) => {
                 if (!cancelled) setHistories((prev) => ({ ...prev, [ticker]: history }));
             });
-            // The forecast is only shown on the 3-month view
-            if (timeRange === 'daily') {
+            // The forecast is only shown on the views with one price per day
+            if (showsForecast(timeRange)) {
                 fetchPrediction(ticker).then((prediction) => {
                     if (!cancelled) setPredictions((prev) => ({ ...prev, [ticker]: prediction }));
                 });
@@ -108,53 +110,38 @@ export default function Dashboard() {
 
         const allPoints = new Map<string, ChartDataPoint>();
 
-        const formatOptions: Intl.DateTimeFormatOptions =
-            timeRange === 'daily'
-                ? { day: '2-digit', month: 'short' }
-                : { hour: "2-digit", minute: "2-digit" }; // the viewer's own time zone
-
         pinned.forEach(ticker => {
             if (histories[ticker]) {
                 histories[ticker].forEach(pt => {
-                    const d = new Date(pt.time);
-                    const name = new Intl.DateTimeFormat("en-GB", formatOptions).format(d);
-                    if (!allPoints.has(name)) allPoints.set(name, { name, at: d.getTime() });
+                    const name = formatTimeLabel(pt.time, timeRange);
+                    if (!allPoints.has(name)) allPoints.set(name, { name, at: new Date(pt.time).getTime() });
                     allPoints.get(name)![ticker] = pt.price;
                 });
             }
         });
 
-        if (timeRange === 'daily') {
+        if (showsForecast(timeRange)) {
             pinned.forEach(ticker => {
                 const tickerHistory = histories[ticker];
                 const tickerPrediction = predictions[ticker];
                 if (tickerHistory && tickerHistory.length > 0 && tickerPrediction && tickerPrediction.length > 0) {
+                    // Start the forecast from the last real price so the lines join up
                     const lastHistoryPoint = tickerHistory[tickerHistory.length - 1];
-                    const d = new Date(lastHistoryPoint.time);
-                    const name = new Intl.DateTimeFormat("en-GB", formatOptions).format(d);
+                    const name = formatTimeLabel(lastHistoryPoint.time, timeRange);
                     if (allPoints.has(name)) {
                         allPoints.get(name)![`${ticker}-pred`] = lastHistoryPoint.price;
                     }
 
                     tickerPrediction.forEach(pt => {
-                        const d = new Date(pt.time);
-                        const name = new Intl.DateTimeFormat("en-GB", { day: '2-digit', month: 'short' }).format(d);
-                        if (!allPoints.has(name)) allPoints.set(name, { name });
+                        const name = formatTimeLabel(pt.time, timeRange);
+                        if (!allPoints.has(name)) allPoints.set(name, { name, at: new Date(pt.time).getTime() });
                         allPoints.get(name)![`${ticker}-pred`] = pt.price;
                     });
                 }
             });
         }
 
-        if (timeRange === 'intraday') {
-            return Array.from(allPoints.values()).sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
-        }
-
-        return Array.from(allPoints.values()).sort((a, b) => {
-            const dateA = new Date(a.name.split(' ').reverse().join(' ') + ' ' + new Date().getFullYear());
-            const dateB = new Date(b.name.split(' ').reverse().join(' ') + ' ' + new Date().getFullYear());
-            return dateA.getTime() - dateB.getTime();
-        });
+        return Array.from(allPoints.values()).sort((a, b) => a.at - b.at);
     })();
 
     // Which market and trading day the intraday prices are from
@@ -172,21 +159,7 @@ export default function Dashboard() {
                 <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
                     <h2 className="text-xl font-semibold">Portfolio Overview</h2>
 
-                    {/* --- ADD THIS DIV WITH THE BUTTONS --- */}
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => setTimeRange('daily')}
-                            className={`px-3 py-1 text-sm rounded-md ${timeRange === 'daily' ? 'bg-sky-500' : 'bg-white/10 hover:bg-white/20'}`}
-                        >
-                            Daily (3mo)
-                        </button>
-                        <button
-                            onClick={() => setTimeRange('intraday')}
-                            className={`px-3 py-1 text-sm rounded-md ${timeRange === 'intraday' ? 'bg-sky-500' : 'bg-white/10 hover:bg-white/20'}`}
-                        >
-                            Intraday (1d)
-                        </button>
-                    </div>
+                    <ChartRangePicker value={timeRange} onChange={setTimeRange} />
                 </div>
 
                 <div className="w-full h-80">
@@ -235,7 +208,7 @@ export default function Dashboard() {
                         </LineChart>
                     </ResponsiveContainer>
                 </div>
-                {timeRange === 'daily' && !chartLoading && pinned.length > 0 && (
+                {showsForecast(timeRange) && !chartLoading && pinned.length > 0 && (
                     <p className="text-sm text-sky-200 mt-2">
                         Dashed lines carry each stock&apos;s latest price 7 trading days forward. Open a stock to
                         see how far it&apos;s likely to move.

@@ -204,18 +204,21 @@ def get_price():
         "change": round(change, 2)
     })
 
+# Each chart range: how far back to go, how far apart the prices are, and how many minutes to reuse them
+PRICE_HISTORY_RANGES = {
+    "intraday": ("1d", "5m", 5),   # today in 5-minute steps
+    "week": ("5d", "30m", 10),     # the last 5 trading days in 30-minute steps
+    "month": ("1mo", "1d", 15),    # the last month of daily closes
+    "daily": ("3mo", "1d", 15),    # the last 3 months of daily closes
+}
+
 @app.route("/price_history", methods=["GET"])
 def price_history():
     ticker = requested_ticker()
-    # Get the requested time range, defaulting to 'daily'
+    # Get the requested time range, defaulting to 'daily' (the last 3 months)
     time_range = request.args.get("range", "daily")
-
-    if time_range == 'intraday':
-        # Today's prices in 5-minute steps, reused for 5 minutes
-        hist = get_history(ticker, period="1d", interval="5m", cache_seconds=5 * 60)
-    else:
-        # Default to daily data for the last 3 months, reused for 15 minutes
-        hist = get_history(ticker, period="3mo", interval="1d", cache_seconds=15 * 60)
+    period, interval, cache_minutes = PRICE_HISTORY_RANGES.get(time_range, PRICE_HISTORY_RANGES["daily"])
+    hist = get_history(ticker, period=period, interval=interval, cache_seconds=cache_minutes * 60)
 
     if hist.empty:
         return jsonify({"error": "No data"}), 404

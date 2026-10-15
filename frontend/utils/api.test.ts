@@ -77,13 +77,13 @@ describe("successful requests", () => {
         expect(fetchMock.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
     });
 
-    it("fetchPriceHistory passes the chosen range", async () => {
+    it.each(["intraday", "week", "month", "daily"] as const)("fetchPriceHistory passes the %s range", async (range) => {
         const { fetchPriceHistory } = await loadApi();
         fetchMock.mockResolvedValue(jsonResponse([{ time: "2026-10-13T00:00:00Z", price: 1 }]));
 
-        const history = await fetchPriceHistory("TSLA", "intraday");
+        const history = await fetchPriceHistory("TSLA", range);
 
-        expect(requestedUrl()).toBe("http://127.0.0.1:5000/price_history?stock=TSLA&range=intraday");
+        expect(requestedUrl()).toBe(`http://127.0.0.1:5000/price_history?stock=TSLA&range=${range}`);
         expect(history).toHaveLength(1);
     });
 

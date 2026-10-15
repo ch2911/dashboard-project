@@ -18,6 +18,8 @@ import { seriesColor } from "../../../../utils/chartColors";
 import { formatPriceTick } from "../../../../utils/chartFormat";
 import { useSeriesColors } from "../../../../hooks/useSeriesColors";
 import PortfolioTooltip, { type TooltipRow } from "../../../../components/PortfolioTooltip";
+import MarketSessionNote from "../../../../components/MarketSessionNote";
+import { describeSession, type MarketSession } from "../../../../utils/marketSession";
 
 import {
     LineChart,
@@ -31,6 +33,8 @@ import {
 
 type ChartDataPoint = {
     name: string;
+    /** For intraday points, when the price was taken, to keep them in order */
+    at?: number;
     [key: string]: string | number | undefined;
 };
 
@@ -107,14 +111,14 @@ export default function Dashboard() {
         const formatOptions: Intl.DateTimeFormatOptions =
             timeRange === 'daily'
                 ? { day: '2-digit', month: 'short' }
-                : { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" };
+                : { hour: "2-digit", minute: "2-digit" }; // the viewer's own time zone
 
         pinned.forEach(ticker => {
             if (histories[ticker]) {
                 histories[ticker].forEach(pt => {
                     const d = new Date(pt.time);
                     const name = new Intl.DateTimeFormat("en-GB", formatOptions).format(d);
-                    if (!allPoints.has(name)) allPoints.set(name, { name });
+                    if (!allPoints.has(name)) allPoints.set(name, { name, at: d.getTime() });
                     allPoints.get(name)![ticker] = pt.price;
                 });
             }
@@ -142,13 +146,21 @@ export default function Dashboard() {
             });
         }
 
+        if (timeRange === 'intraday') {
+            return Array.from(allPoints.values()).sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
+        }
+
         return Array.from(allPoints.values()).sort((a, b) => {
-            // This sort may need adjustment if intraday times span midnight, but is good for now.
             const dateA = new Date(a.name.split(' ').reverse().join(' ') + ' ' + new Date().getFullYear());
             const dateB = new Date(b.name.split(' ').reverse().join(' ') + ' ' + new Date().getFullYear());
             return dateA.getTime() - dateB.getTime();
         });
     })();
+
+    // Which market and trading day the intraday prices are from
+    const sessions: MarketSession[] = timeRange === 'intraday'
+        ? pinned.flatMap((ticker) => describeSession(ticker, histories[ticker] ?? []) ?? [])
+        : [];
 
     return (
         <div>
@@ -226,6 +238,7 @@ export default function Dashboard() {
                 {timeRange === 'daily' && !chartLoading && pinned.length > 0 && (
                     <p className="text-sm text-sky-200 mt-2">Dashed lines show each stock&apos;s 7-day forecast.</p>
                 )}
+                {timeRange === 'intraday' && !chartLoading && <MarketSessionNote sessions={sessions} />}
                 {chartLoading && <p className="text-sm text-sky-200 mt-2">Loading chart...</p>}
                 {chartMissing.length > 0 && (
                     <p className="text-sm text-sky-200 mt-2">

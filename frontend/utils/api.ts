@@ -1,6 +1,8 @@
 // Calls to the Flask API. Every helper returns a safe fallback (null or an empty list)
 // instead of throwing, so one failed request can't leave a page stuck on "Loading...".
 
+import type { ChartRange } from "./chartRanges";
+
 // Backend URL: set NEXT_PUBLIC_API_URL when deploying; defaults to the local Flask server
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000").replace(/\/$/, "");
 
@@ -69,7 +71,7 @@ export async function fetchPrice(stock: string = "TSLA"): Promise<StockPrice | n
     return data && typeof data.price === "number" ? data : null;
 }
 
-export async function fetchPriceHistory(stock: string = "TSLA", range: "daily" | "intraday" = "daily"): Promise<PricePoint[]> {
+export async function fetchPriceHistory(stock: string = "TSLA", range: ChartRange = "daily"): Promise<PricePoint[]> {
     return (await getList<PricePoint>(`/price_history?stock=${encodeURIComponent(stock)}&range=${range}`)) ?? [];
 }
 

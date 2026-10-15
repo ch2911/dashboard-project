@@ -108,6 +108,9 @@ def test_price_when_yahoo_keeps_refusing_says_it_is_busy(client, monkeypatch):
     [
         ("&range=daily", "3mo", "1d"),
         ("&range=intraday", "1d", "5m"),
+        ("&range=week", "5d", "30m"),
+        ("&range=month", "1mo", "1d"),
+        ("&range=nonsense", "3mo", "1d"),  # an unknown range falls back to daily
         ("", "3mo", "1d"),  # daily is the default
     ],
 )

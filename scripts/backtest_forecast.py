@@ -4,10 +4,12 @@ Usage:
     python scripts/backtest_forecast.py [--years 5] [--test-years 2] [--out report.md]
     python scripts/backtest_forecast.py --synthetic   # quick run on made-up prices, no network
 
-Three models forecast each stock's closing price 1 to 7 trading days ahead, each as a middle
+Four models forecast each stock's closing price 1 to 7 trading days ahead, each as a middle
 line plus a likely range (the 10th to 90th percentile):
 
-- No change: the price stays where it is. The range comes from the stock's recent volatility.
+- No change: the price stays where it is. The range comes from the last 6 months' volatility.
+- No change, recent volatility: the same, but recent days count for more when sizing the range
+  (an exponentially weighted average, as in RiskMetrics), so it widens quickly when markets jump.
 - ARIMA: what the dashboard uses now, ARIMA(10,1,0) fitted on the last 6 months of prices.
 - Trees: one gradient-boosted tree model trained on every stock together, using recent returns,
   volatility, volume, the S&P 500 (SPY) and the VIX.
@@ -36,6 +38,7 @@ QUANTILES = (0.1, 0.5, 0.9)
 Z90 = norm.ppf(0.9)  # how many standard deviations the 90th percentile is above the middle
 
 ARIMA_WINDOW = 126  # about 6 months of trading days, like the dashboard
+EWMA_DECAY = 0.94  # each older day counts 6% less (the RiskMetrics daily setting)
 ORIGIN_STEP = 5  # forecast from every 5th trading day in the test period
 RETRAIN_STEP = 126  # retrain the tree model about every 6 months
 WARMUP = 60  # days of history the longest feature needs
@@ -154,6 +157,13 @@ def no_change_forecast(prices):
     return {h: (-Z90 * sigma * np.sqrt(h), 0.0, Z90 * sigma * np.sqrt(h)) for h in HORIZONS}
 
 
+def recent_volatility_forecast(prices):
+    returns = np.diff(np.log(prices[-ARIMA_WINDOW:]))
+    weights = EWMA_DECAY ** np.arange(len(returns))[::-1]
+    sigma = np.sqrt(np.sum(weights * returns**2) / np.sum(weights))
+    return {h: (-Z90 * sigma * np.sqrt(h), 0.0, Z90 * sigma * np.sqrt(h)) for h in HORIZONS}
+
+
 def arima_forecast(prices):
     window = prices[-ARIMA_WINDOW:]
     with warnings.catch_warnings():
@@ -185,6 +195,7 @@ def _forecast_one_stock(args):
     for pos in origins:
         history = prices[: pos + 1]
         base = no_change_forecast(history)
+        recent = recent_volatility_forecast(history)
         try:
             arima = arima_forecast(history)
         except Exception:
@@ -193,6 +204,7 @@ def _forecast_one_stock(args):
             arima = base
         for h in HORIZONS:
             rows.append((pos, ticker, h, "No change", *base[h]))
+            rows.append((pos, ticker, h, "No change, recent volatility", *recent[h]))
             rows.append((pos, ticker, h, "ARIMA (current)", *arima[h]))
     return rows, failures
 
@@ -273,8 +285,11 @@ def bootstrap_difference(scored, model, baseline, column, n=2000, seed=0):
     return 100 * (point - 1), 100 * (np.percentile(ratios, 2.5) - 1), 100 * (np.percentile(ratios, 97.5) - 1)
 
 
+MODELS = ["No change", "No change, recent volatility", "ARIMA (current)", "Trees (new)"]
+
+
 def report(scored, close, origins, arima_failures, seconds):
-    models = ["No change", "ARIMA (current)", "Trees (new)"]
+    models = MODELS
     first, last = close.index[origins[0]].date(), close.index[origins[-1]].date()
     n_stocks = scored["ticker"].nunique()
     lines = [
@@ -293,7 +308,7 @@ def report(scored, close, origins, arima_failures, seconds):
     ]
     for m in models:
         s = scored[scored["model"] == m]
-        direction = "n/a" if m == "No change" else f"{100 * s['right_direction'].mean():.1f}%"
+        direction = "n/a" if m.startswith("No change") else f"{100 * s['right_direction'].mean():.1f}%"
         lines.append(
             f"| {m} | {100 * s['abs_error'].mean():.3f}% | {100 * s['range_loss'].mean():.4f} | "
             f"{100 * s['inside'].mean():.1f}% | ±{50 * s['width'].mean():.2f}% | {direction} |"
@@ -312,20 +327,30 @@ def report(scored, close, origins, arima_failures, seconds):
         "| Model | Middle-line error | Range score |",
         "|---|---|---|",
     ]
-    verdict = {}
     for m in models[1:]:
         err = bootstrap_difference(scored, m, "No change", "abs_error")
         rng_ = bootstrap_difference(scored, m, "No change", "range_loss")
-        verdict[m] = (err, rng_)
         lines.append(
             f"| {m} | {err[0]:+.2f}% ({err[1]:+.2f}% to {err[2]:+.2f}%) | "
             f"{rng_[0]:+.2f}% ({rng_[1]:+.2f}% to {rng_[2]:+.2f}%) |"
         )
-    trees_vs_arima = bootstrap_difference(scored, "Trees (new)", "ARIMA (current)", "range_loss")
     lines += [
         "",
-        f"Trees vs ARIMA on range score: {trees_vs_arima[0]:+.2f}% "
-        f"({trees_vs_arima[1]:+.2f}% to {trees_vs_arima[2]:+.2f}%).",
+        "## Compared with the current ARIMA",
+        "",
+        "| Model | Middle-line error | Range score |",
+        "|---|---|---|",
+    ]
+    for m in models:
+        if m == "ARIMA (current)":
+            continue
+        err = bootstrap_difference(scored, m, "ARIMA (current)", "abs_error")
+        rng_ = bootstrap_difference(scored, m, "ARIMA (current)", "range_loss")
+        lines.append(
+            f"| {m} | {err[0]:+.2f}% ({err[1]:+.2f}% to {err[2]:+.2f}%) | "
+            f"{rng_[0]:+.2f}% ({rng_[1]:+.2f}% to {rng_[2]:+.2f}%) |"
+        )
+    lines += [
         "",
         "## Middle-line error by horizon",
         "",
@@ -336,17 +361,14 @@ def report(scored, close, origins, arima_failures, seconds):
     for h in HORIZONS:
         lines.append(f"| {h} | " + " | ".join(f"{100 * by_h.loc[h, m]:.3f}%" for m in models) + " |")
 
-    trees_range = verdict["Trees (new)"][1]
-    beats_no_change = trees_range[2] < 0
-    beats_arima = trees_vs_arima[2] < 0
-    lines += ["", "## Verdict", ""]
-    if beats_no_change and beats_arima:
-        lines.append("The tree model's range score is better than both other models, beyond what "
-                     "luck would explain. Switching is worth it.")
-    elif beats_arima:
-        lines.append("The tree model beats the current ARIMA, but not clearly \"no change\".")
-    else:
-        lines.append("The tree model doesn't clearly beat the current ARIMA.")
+    range_scores = scored.groupby("model")["range_loss"].mean()
+    best = range_scores.idxmin()
+    lines += ["", "## Verdict", "", f"Best range score: {best}."]
+    for other in models:
+        if other != best:
+            diff = bootstrap_difference(scored, best, other, "range_loss")
+            clearly = "clearly better" if diff[2] < 0 else "not clearly better"
+            lines.append(f"- vs {other}: {diff[0]:+.2f}% ({diff[1]:+.2f}% to {diff[2]:+.2f}%), {clearly}")
     if arima_failures:
         lines.append(f"\nARIMA failed {arima_failures} times; those were scored as \"no change\".")
     return "\n".join(lines) + "\n"
@@ -390,7 +412,7 @@ def main():
     # Score each model on the same forecasts only
     keys = ["pos", "ticker", "h"]
     counts = forecasts.groupby(keys)["model"].transform("count")
-    forecasts = forecasts[counts == 3]
+    forecasts = forecasts[counts == len(MODELS)]
     scored = score(forecasts, close)
     text = report(scored, close, origins, arima_failures, time.time() - started)
     print(text)

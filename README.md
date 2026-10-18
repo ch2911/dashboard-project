@@ -75,7 +75,6 @@ dashboard-project/
 ├── scripts/
 │   ├── backtest_forecast.py # the forecast backtest
 │   └── smoke_test.py        # the checks the smoke test runs
-├── supabase/                # SQL to run once in Supabase: pinned-stock limits and price alert tables
 ├── docs/                    # screenshots and the latest backtest report
 └── .env.example
 ```
@@ -144,28 +143,7 @@ Open http://localhost:3000, sign up with an email and password, click the link i
 By default the app signs users in through the author's Supabase project. To use your own:
 
 1. Create a free project at [supabase.com](https://supabase.com).
-2. In the SQL editor, create the pinned-stocks table and its access rules:
-
-   ```sql
-   create table public.favorites (
-     id uuid primary key default gen_random_uuid(),
-     user_id uuid not null references auth.users (id) on delete cascade,
-     symbol text not null,
-     inserted_at timestamp default now()
-   );
-
-   alter table public.favorites enable row level security;
-
-   create policy "Allow individual read access" on public.favorites
-     for select using (auth.uid() = user_id);
-   create policy "Allow individual insert access" on public.favorites
-     for insert with check (auth.uid() = user_id);
-   create policy "Allow individual delete access" on public.favorites
-     for delete using (auth.uid() = user_id);
-   ```
-
-   Then run `supabase/favorites_hardening.sql`, which only lets users pin real-looking tickers, each once, up to 50.
-
+2. Create a `favorites` table (`id`, `user_id` linked to `auth.users`, `symbol`, `inserted_at`) with row level security, so each user can only read, add and delete their own pinned stocks.
 3. Replace the URL and anon key in `frontend/lib/supabaseClient.ts` with your project's own, from Project Settings → API.
 
 ## Price alert emails
@@ -176,7 +154,7 @@ Users get an email when one of their pinned stocks moves at least a set percenta
 
 To turn it on:
 
-1. Run `supabase/price_alerts.sql` once in the Supabase SQL editor. It adds the `alert_settings` and `alerts_sent` tables.
+1. Create the `alert_settings` table (each user's on/off choice and threshold, readable and editable only by that user) and the `alerts_sent` table (which stocks were already emailed each day, used only by the alert job).
 2. In the GitHub repo, under Settings → Secrets and variables → Actions, add:
    - secrets `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API keys) and `RESEND_API_KEY`
    - variables `SUPABASE_URL` (e.g. `https://xxxx.supabase.co`) and `ALERT_FROM_EMAIL` (e.g. `Stock Dashboard <alerts@yourdomain.com>`, on a domain verified in Resend)

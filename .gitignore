@@ -5,3 +5,7 @@ backend/.venv/
 __pycache__/
 .pytest_cache/
 .coverage
+
+# Supabase setup SQL (kept locally, not in the repo)
+supabase/
+*.sql
